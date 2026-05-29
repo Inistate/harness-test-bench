@@ -13,7 +13,15 @@ export INISTATE_API_URL=https://app02.apps.inistate.com
 export INISTATE_MCP_PATH=/Users/yourname/Documents/inistate-mcp/build/index.js
 ```
 
-`INISTATE_MCP_PATH` must point to a local MCP server entry file. TestBench starts it as a child process with Node, equivalent to:
+The Inistate MCP server is a separate repo — clone and build it first:
+
+```zsh
+git clone https://github.com/Inistate/inistate-mcp
+cd inistate-mcp
+npm install && npm run build
+```
+
+`INISTATE_MCP_PATH` must point to the built entry file. TestBench starts it as a child process with Node, equivalent to:
 
 ```zsh
 node "$INISTATE_MCP_PATH"
