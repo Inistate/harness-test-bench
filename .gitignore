@@ -1,0 +1,5 @@
+.env
+node_modules/
+results/
+debug.log
+.claude/
