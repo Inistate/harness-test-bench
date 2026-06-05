@@ -2,11 +2,12 @@
   "name": "inistate-testbench",
   "version": "1.0.0",
   "description": "Benchmark AI models on Inistate workflow scenarios",
-  "main": "index.js",
+  "main": "src/index.ts",
   "type": "commonjs",
   "scripts": {
-    "start": "node index.js",
-    "test": "node index.js"
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "visualise": "tsx src/display/visualise.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
@@ -14,5 +15,11 @@
     "dotenv": "^17.4.2",
     "inquirer": "^8.2.6",
     "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^8.2.12",
+    "@types/node": "^22.19.19",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
   }
 }
