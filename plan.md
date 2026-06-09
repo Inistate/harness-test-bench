@@ -73,17 +73,30 @@ The token is passed as `INISTATE_API_TOKEN` env var to the MCP child process.
 
 ## Architecture
 
+> **Note:** The codebase is fully TypeScript. All source files are under `src/` and compiled to `dist/` via `tsc`.
+
 ```
-testbench/
-  index.js              ← CLI entry point (inquirer prompts)
-  runner.js             ← Main benchmark loop
-  mcp_bridge.js         ← Spawns MCP, converts tools, bridges calls
-  models.js             ← Model list + pricing
-  visualise.js          ← CLI results visualiser
+src/
+  index.ts                    ← CLI entry point (inquirer prompts)
+  types.ts                    ← Shared TypeScript interfaces
+  core/
+    runner.ts                 ← Main benchmark loop
+    judge.ts                  ← LLM judge for schema-defined scenarios
+  bridges/
+    mcp-bridge.ts             ← Spawns MCP, converts tools, bridges calls
+    api-bridge.ts             ← Direct Inistate API calls (module CRUD)
+  data/
+    models.ts                 ← Model list + pricing
+  display/
+    visualise.ts              ← CLI results visualiser
   scenarios/
-    invoice_workflow.js ← End-to-end scenario with setup, tasks, teardown
-  results/              ← JSON output per run
-  plan.md               ← This file
+    invoice-workflow.ts       ← Hardcoded end-to-end scenario (TypeScript)
+    smoke-all-tools.ts        ← Tool smoke test scenario
+    schema-loader.ts          ← Converts JSON schemas → Scenario objects
+    builder.ts                ← Chat-based scenario builder (LLM-assisted)
+    generated/                ← JSON scenario schemas created via builder
+results/                      ← JSON output per run
+plan.md                       ← This file
 ```
 
 ---
@@ -308,15 +321,108 @@ node index.js
 
 ---
 
-## Adding a New Scenario
+## Scenario Builder (Planned)
 
-1. Create `scenarios/my_scenario.js`
+### Overview
+
+Users describe a scenario in natural language via a chat interface. An LLM structures the description into a typed JSON schema, which is saved to `src/scenarios/generated/`. Schema scenarios are auto-discovered and run alongside hardcoded TypeScript scenarios.
+
+### Schema Format
+
+```json
+{
+  "id": "purchase_order_flow",
+  "name": "Purchase Order Approval",
+  "description": "Tests PO creation and approval routing",
+  "system": "You are a procurement assistant...",
+  "setupPrompt": "Create a Purchase Order module with states Draft, Pending Approval, Approved. Add a PO entry in Draft state for supplier TechCorp for $5,000.",
+  "tasks": [
+    {
+      "id": "task_1",
+      "name": "Create PO",
+      "prompt": "Create a purchase order for 50 units of Widget A at $100 each from TechCorp. Use workspace ${workspaceId}.",
+      "evaluationCriteria": [
+        "Model called get_form before submitting",
+        "Quantity is 50 and unit price is 100",
+        "Supplier name is TechCorp"
+      ]
+    }
+  ]
+}
+```
+
+**Fields:**
+- `setupPrompt` — optional natural language instructions; an LLM agent runs setup via MCP tools before the benchmark starts
+- `tasks[].prompt` — supports `${workspaceId}` and any asset keys returned by the setup agent (e.g. `${entryId}`)
+- `tasks[].evaluationCriteria` — natural language criteria passed to the LLM judge
+
+### LLM Judge
+
+For schema scenarios, evaluation is performed by a judge LLM (separate from the model under test). After each task, the judge receives:
+
+```
+Task: <task name>
+Prompt: <task prompt>
+Evaluation criteria:
+1. Model called get_form before submitting
+2. Quantity is 50 and unit price is 100
+
+Tool calls made:
+[{ "name": "get_form", ... }, { "name": "submit_activity", ... }]
+
+Agent response:
+"I've created the purchase order for TechCorp..."
+
+Return JSON: { "success": bool, "issues": string[], "hallucinated": bool }
+```
+
+The judge is implemented in `src/core/judge.ts` and uses a capable OpenRouter model (e.g. claude-3.5-sonnet or gpt-4o-mini).
+
+### Setup Agent
+
+When `setupPrompt` is provided, a setup agent runs before the benchmark models are tested:
+
+1. Agent receives the `setupPrompt` + all MCP tools
+2. Agent calls MCP tools to create modules/entries as instructed
+3. Agent's final message must include `<assets>{ "entryId": "123", ... }</assets>` — structured JSON capturing created IDs
+4. Schema loader parses the assets and injects them as `${key}` substitutions in task prompts
+5. On teardown, a cleanup agent runs with the reverse instruction ("delete everything created during setup") + the assets JSON
+
+### Chat Builder Flow
+
+Triggered from the main menu via "Create new scenario". A multi-turn conversation with an LLM:
+
+1. User types a free-text description: *"I want to test a purchase order workflow..."*
+2. LLM asks clarifying questions: tasks, success conditions, whether setup is needed
+3. User answers conversationally
+4. LLM outputs the completed scenario JSON wrapped in `<scenario>...</scenario>` tags
+5. Builder extracts the JSON, validates it, previews it to the user
+6. User confirms → saved to `src/scenarios/generated/<id>.json`
+
+### New Files
+
+| File | Purpose |
+|---|---|
+| `src/core/judge.ts` | LLM judge — evaluates tool calls + response against natural language criteria |
+| `src/scenarios/schema-loader.ts` | Loads `generated/*.json`, runs LLM setup/teardown agents, returns `Scenario[]` |
+| `src/scenarios/builder.ts` | Chat-based scenario builder — multi-turn LLM conversation → JSON |
+| `src/scenarios/generated/` | Storage for JSON scenario schemas created via builder |
+
+---
+
+## Adding a New Scenario (TypeScript)
+
+1. Create `src/scenarios/my_scenario.ts`
 2. Export object with `id`, `name`, `description`, `setup`, `system`, `tasks[]`, `teardown`
 3. TestBench auto-discovers it — no other changes needed
 
+## Adding a New Scenario (via Builder)
+
+Run `npm start` and select **"Create new scenario"** from the main menu.
+
 ## Adding a New Model
 
-1. Edit `models.js`
+1. Edit `src/data/models.ts`
 2. Add `{ id: "provider/model-id", name: "Display Name", price_in: X, price_out: Y }`
 3. Restart TestBench — model appears in CLI selection
 

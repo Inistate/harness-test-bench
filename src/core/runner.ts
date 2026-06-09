@@ -3,7 +3,7 @@ import type { Tool } from "@openrouter/agent";
 import * as fs from "fs";
 import * as path from "path";
 import { MCPBridge } from "../bridges/mcp-bridge";
-import type { BenchmarkConfig, Model, ModelRunResult, Scenario, ScenarioResult, TaskResult, ToolCall } from "../types";
+import type { BenchmarkConfig, IBridge, Model, ModelRunResult, RawMcpTool, Scenario, ScenarioResult, TaskResult, ToolCall } from "../types";
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -145,7 +145,7 @@ async function collectExecutedToolCalls(result: unknown): Promise<ToolCall[]> {
 async function runTask(
   openrouter: OpenRouter,
   model: Model,
-  task: { id: string; name: string; prompt: string | ((assets: Record<string, unknown>) => string); evaluate: (calls: ToolCall[], response: string) => { success: boolean; issues: string[]; hallucinated: boolean } },
+  task: { id: string; name: string; prompt: string | ((assets: Record<string, unknown>) => string); evaluate: (calls: ToolCall[], response: string) => { success: boolean; issues: string[]; hallucinated: boolean }; maxSteps?: number },
   assets: Record<string, unknown>,
   tools: Tool[],
   system: string,
@@ -164,7 +164,7 @@ async function runTask(
         { role: "user", content: prompt },
       ]),
       tools,
-      stopWhen: stepCountIs(12),
+      stopWhen: stepCountIs(task.maxSteps ?? 12),
     });
 
     // Collect reasoning concurrently while the model runs
@@ -235,6 +235,110 @@ async function runTask(
   }
 }
 
+// ─── Local model runner (fetch → /chat/completions, bypasses OpenRouter SDK) ───
+type LocalMsg =
+  | { role: "system" | "user"; content: string }
+  | { role: "assistant"; content: string | null; tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }> }
+  | { role: "tool"; tool_call_id: string; content: string };
+
+async function runTaskLocal(
+  localBaseUrl: string,
+  model: Model,
+  task: Parameters<typeof runTask>[2],
+  assets: Record<string, unknown>,
+  rawTools: RawMcpTool[],
+  bridge: IBridge,
+  system: string
+): Promise<TaskResult> {
+  const prompt = typeof task.prompt === "function" ? task.prompt(assets) : task.prompt;
+  const start = Date.now();
+  const collectedToolCalls: ToolCall[] = [];
+
+  const openaiTools = rawTools.map((t) => ({
+    type: "function" as const,
+    function: {
+      name: t.name,
+      description: t.description ?? t.name,
+      parameters: (t.inputSchema as Record<string, unknown>) ?? { type: "object", properties: {} },
+    },
+  }));
+
+  const messages: LocalMsg[] = [
+    { role: "system", content: system },
+    { role: "user",   content: prompt },
+  ];
+
+  let finalText = "";
+  let inputTokens = 0;
+  let outputTokens = 0;
+  const maxSteps = task.maxSteps ?? 12;
+
+  for (let step = 0; step < maxSteps; step++) {
+    let res: Response;
+    try {
+      res = await fetch(`${localBaseUrl}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer local" },
+        body: JSON.stringify({ model: process.env.LOCAL_MODEL_ID ?? model.id, messages, tools: openaiTools, tool_choice: "auto" }),
+      });
+    } catch (e) {
+      return { skipped: true, reason: `Local model unreachable: ${(e as Error).message}` };
+    }
+
+    if (!res.ok) {
+      const body = await res.text();
+      return { skipped: true, reason: `Local model ${res.status}: ${body.slice(0, 200)}` };
+    }
+
+    const data = await res.json() as {
+      choices: Array<{ message: { role: string; content: string | null; tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }> }; finish_reason: string }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+
+    inputTokens  += data.usage?.prompt_tokens  ?? 0;
+    outputTokens += data.usage?.completion_tokens ?? 0;
+
+    const msg = data.choices[0].message;
+
+    if (!msg.tool_calls || msg.tool_calls.length === 0) {
+      finalText = msg.content ?? "";
+      break;
+    }
+
+    messages.push({ role: "assistant", content: msg.content ?? null, tool_calls: msg.tool_calls });
+
+    for (const tc of msg.tool_calls) {
+      let result: unknown;
+      let parsedArgs: Record<string, unknown> = {};
+      try { parsedArgs = JSON.parse(tc.function.arguments) as Record<string, unknown>; } catch { /* keep empty */ }
+      try {
+        result = await bridge.callTool(tc.function.name, parsedArgs);
+      } catch (e) {
+        result = { error: (e as Error).message };
+      }
+      collectedToolCalls.push({ name: tc.function.name, arguments: parsedArgs, result });
+      messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) });
+    }
+  }
+
+  const latency = Date.now() - start;
+  const evaluation = task.evaluate(collectedToolCalls, finalText);
+
+  return {
+    skipped: false,
+    success: evaluation.success,
+    issues: evaluation.issues,
+    hallucinated: evaluation.hallucinated,
+    latency_ms: latency,
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    cost_usd: 0,
+    tool_calls: collectedToolCalls.map((t) => t.name),
+    tool_call_details: collectedToolCalls,
+    response_preview: finalText.slice(0, 200),
+  };
+}
+
 // ─── Run all tasks for one scenario + model ────────────────────────────────────
 async function runScenarioForModel(
   openrouter: OpenRouter,
@@ -242,7 +346,10 @@ async function runScenarioForModel(
   scenario: Scenario,
   assets: Record<string, unknown>,
   tools: Tool[],
-  logReasoning: boolean
+  rawTools: RawMcpTool[],
+  localBaseUrl: string | undefined,
+  logReasoning: boolean,
+  bridge: IBridge
 ): Promise<ModelRunResult> {
   const modelResults: ModelRunResult = {
     model: model.name,
@@ -262,7 +369,18 @@ async function runScenarioForModel(
       `    Task ${i + 1}/${scenario.tasks.length}: ${c.dim}${task.name}${c.reset} `
     );
 
-    const result = await runTask(openrouter, model, task as Parameters<typeof runTask>[2], assets, tools, scenario.system, logReasoning);
+    if (task.setup) {
+      try {
+        await task.setup(bridge, assets as Parameters<typeof task.setup>[1]);
+      } catch (e) {
+        console.log(`\n    ${warn} Task setup failed: ${(e as Error).message}`);
+      }
+    }
+
+    const system = typeof scenario.system === "function" ? scenario.system(assets) : scenario.system;
+    const result = localBaseUrl
+      ? await runTaskLocal(localBaseUrl, model, task as Parameters<typeof runTask>[2], assets, rawTools, bridge, system)
+      : await runTask(openrouter, model, task as Parameters<typeof runTask>[2], assets, tools, system, logReasoning);
 
     if (result.skipped) {
       console.log(`${warn} Skipped: ${result.reason}`);
@@ -316,7 +434,11 @@ async function runScenarioForModel(
 // ─── Main runner ───────────────────────────────────────────────────────────────
 export async function runBenchmark(config: BenchmarkConfig): Promise<Record<string, ScenarioResult>> {
   const { scenarios, models, runs, mcpPath, mcpEnv, openRouterKey, logReasoning = false, scenarioWorkspaces } = config;
-  const openrouter = new OpenRouter({ apiKey: openRouterKey || process.env.OPENROUTER_API_KEY });
+  const localBaseUrl = process.env.LOCAL_BASE_URL;
+  const openrouter = new OpenRouter({
+    apiKey: openRouterKey || process.env.OPENROUTER_API_KEY || "local",
+    ...(localBaseUrl && { serverURL: localBaseUrl }),
+  });
   const allResults: Record<string, ScenarioResult> = {};
 
   for (const scenario of scenarios) {
@@ -358,7 +480,7 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<Record<stri
 
       for (let run = 0; run < runs; run++) {
         if (runs > 1) console.log(`  Run ${run + 1}/${runs}:`);
-        const result = await runScenarioForModel(openrouter, model, scenario, assets, tools, logReasoning);
+        const result = await runScenarioForModel(openrouter, model, scenario, assets, tools, mcpBridge.rawTools, localBaseUrl, logReasoning, mcpBridge);
         modelRunResults.push(result);
         if (result.skipped) break;
       }

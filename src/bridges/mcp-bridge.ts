@@ -3,7 +3,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { tool } from "@openrouter/agent";
 import type { Tool } from "@openrouter/agent";
 import { z } from "zod";
-import type { IBridge } from "../types";
+import type { IBridge, RawMcpTool } from "../types";
 
 interface McpToolSchema {
   type?: string;
@@ -16,11 +16,7 @@ interface McpFieldSchema {
   description?: string;
 }
 
-interface McpTool {
-  name: string;
-  description?: string;
-  inputSchema?: McpToolSchema;
-}
+type McpTool = RawMcpTool & { inputSchema?: McpToolSchema };
 
 interface McpCallResult {
   content?: Array<{ type: string; text?: string }>;
@@ -32,7 +28,7 @@ export class MCPBridge implements IBridge {
   private client: Client | null = null;
   private transport: StdioClientTransport | null = null;
   agentTools: Tool[] = [];
-  rawTools: McpTool[] = [];
+  rawTools: RawMcpTool[] = [];
 
   constructor(mcpPath: string, mcpEnv: Record<string, string>) {
     this.mcpPath = mcpPath;
@@ -44,6 +40,7 @@ export class MCPBridge implements IBridge {
       command: process.execPath,
       args: [this.mcpPath],
       env: { ...process.env, ...this.mcpEnv } as Record<string, string>,
+      stderr: "ignore",
     });
 
     this.client = new Client(

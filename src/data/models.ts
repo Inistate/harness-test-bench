@@ -45,4 +45,7 @@ export const MODELS: Model[] = [
 
   // MiniMax
   { id: "minimax/minimax-m2.5", name: "MiniMax M2.5", price_in: 0.15, price_out: 1.15 },
+
+  // Local models (served via mlx_lm at LOCAL_BASE_URL)
+  { id: "qwen3-coder-30b-local", name: "Qwen3-Coder 30B (local)", price_in: 0, price_out: 0 },
 ];

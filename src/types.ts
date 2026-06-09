@@ -79,6 +79,8 @@ export interface Task<TAssets> {
   name: string;
   prompt: string | ((assets: TAssets) => string);
   evaluate: (toolCalls: ToolCall[], response: string) => EvaluationResult;
+  maxSteps?: number;
+  setup?: (bridge: IBridge, assets: TAssets) => Promise<void>;
 }
 
 /** Minimal bridge interface used by scenario setup/teardown — avoids circular imports. */
@@ -86,11 +88,37 @@ export interface IBridge {
   callTool(name: string, args: Record<string, unknown>): Promise<unknown>;
 }
 
+export interface GeneratedTask {
+  id: string;
+  name: string;
+  prompt: string;
+  setupPrompt?: string;
+  checks: string[];
+  ai?: string;
+  maxSteps?: number;
+}
+
+export interface GeneratedScenario {
+  id: string;
+  name: string;
+  description?: string;
+  system: string;
+  setupPrompt: string;
+  tasks: GeneratedTask[];
+}
+
+export interface RawMcpTool {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
+
 export interface Scenario<TAssets = Record<string, unknown>> {
   id: string;
   name: string;
   description: string;
-  system: string;
+  system: string | ((assets: TAssets) => string);
   setup: (bridge: IBridge, workspaceId: string) => Promise<TAssets>;
   tasks: Task<TAssets>[];
   teardown: (bridge: IBridge, assets: TAssets) => Promise<void>;

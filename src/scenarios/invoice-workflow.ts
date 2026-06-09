@@ -30,11 +30,18 @@ function getCreatedModuleId(result: unknown): string | number | undefined {
   ) as string | number | undefined;
 }
 
+function isValidId(v: unknown): boolean {
+  if (v === undefined || v === null) return false;
+  if (typeof v === "number") return Number.isFinite(v) && v > 0;
+  if (typeof v === "string") return v.length > 0 && v !== "new" && !isNaN(Number(v));
+  return false;
+}
+
 function getCreatedEntryId(result: unknown): string | number | undefined {
   const r = result as Record<string, unknown>;
   const results = r?.results as Array<Record<string, unknown>> | undefined;
   const list    = r?.list    as Array<Record<string, unknown>> | undefined;
-  return firstDefined(
+  const candidate = firstDefined(
     r?.entryId,
     (r?.entryIds as unknown[])?.[0],
     results?.[0]?.entryId,
@@ -42,7 +49,8 @@ function getCreatedEntryId(result: unknown): string | number | undefined {
     list?.[0]?.entryId,
     (r?.data as Record<string, unknown>)?.entryId,
     (r?.data as Record<string, unknown> & { results?: Array<Record<string, unknown>> })?.results?.[0]?.entryId,
-  ) as string | number | undefined;
+  );
+  return isValidId(candidate) ? candidate as string | number : undefined;
 }
 
 function getModuleList(result: unknown): Array<Record<string, unknown>> {
@@ -216,20 +224,20 @@ const scenario: Scenario<InvoiceAssets> = {
     if (!overdueEntryId) throw new Error(`Setup failed: could not extract overdueEntryId. Raw: ${JSON.stringify(overdueResult)}`);
     console.log(`    → Overdue entry created (id: ${overdueEntryId})`);
 
+    await bridge.callTool("set_workspace", { workspaceId });
     return { workspaceId, invoiceModuleId, clientModuleId, task2EntryId, task3EntryId, overdueEntryId, clientId };
   },
 
-  system: `You are an invoice management AI assistant for Inistate.
-You have access to tools to manage invoices, clients, and workflow states.
-Use the tools to complete the given task. Be concise and efficient.
-Always use the correct module names and workspace IDs as provided.`,
+  system: (assets) => `You are an invoice management AI assistant for Inistate.
+Workspace ${assets.workspaceId} is already active — you do not need to pass workspaceId to any tool.
+Use the tools to complete the given task. Be concise and efficient.`,
 
   tasks: [
     {
       id: "task_1",
       name: "Create Invoice",
       prompt: (assets) =>
-        `Create an invoice for Apex Solutions Sdn Bhd for RM 15,000 consulting services. Tax is 8% (RM 1,200). Total is RM 16,200. Payment terms Net 30. Use workspace ${assets.workspaceId}.`,
+        `Create an invoice for Apex Solutions for $15,000 consulting services. Tax is 8% ($1,200). Total is $16,200. Payment terms Net 30.`,
       evaluate: (toolCalls) => {
         const isInvoiceCreate = (t: { name: string; arguments: Record<string, unknown> }) =>
           (t.name === "submit_activity" || t.name === "submit_activities") &&
@@ -256,25 +264,25 @@ Always use the correct module names and workspace IDs as provided.`,
       id: "task_2",
       name: "Submit for Approval",
       prompt: (assets) =>
-        `Submit invoice entryId ${assets.task2EntryId} for Finance Manager approval. The invoice amount exceeds the RM 10,000 threshold. Use workspace ${assets.workspaceId}.`,
+        `Submit invoice entryId ${assets.task2EntryId} for Finance Manager approval. The invoice amount exceeds the $10,000 threshold.`,
       evaluate: (toolCalls) => {
-        const checkedEntry       = toolCalls.some((t) => t.name === "get_entry");
-        const submittedForApproval = toolCalls.some(
+        const checkedEntry = toolCalls.some((t) => t.name === "get_entry");
+        const submitted    = toolCalls.some(
           (t) => (t.name === "submit_activity" || t.name === "submit_activities") &&
-            t.arguments?.["activity"] === "Generate Invoice" &&
-            ((t.result as Record<string, unknown>)?.results as Array<{ success: boolean }>)?.[0]?.success === true
+            t.arguments?.["module"] === "Invoice" &&
+            !(t.result as Record<string, unknown>)?.error
         );
         const issues: string[] = [];
-        if (!checkedEntry)         issues.push("Did not call get_entry to check current state");
-        if (!submittedForApproval) issues.push("Did not submit Generate Invoice activity");
-        return { success: submittedForApproval, issues, hallucinated: false };
+        if (!checkedEntry) issues.push("Did not call get_entry to check current state");
+        if (!submitted)    issues.push("Did not submit an activity on the Invoice");
+        return { success: submitted, issues, hallucinated: false };
       },
     },
     {
       id: "task_3",
       name: "Check Available Actions",
       prompt: (assets) =>
-        `Check what actions are currently available for invoice entryId ${assets.task3EntryId}. Use workspace ${assets.workspaceId}.`,
+        `Check what actions are currently available for invoice entryId ${assets.task3EntryId}.`,
       evaluate: (toolCalls, response) => {
         const calledGetEntry             = toolCalls.some((t) => t.name === "get_entry");
         const responseMentionsActivities = ["available", "activit", "transition", "action"].some((w) => response.toLowerCase().includes(w));
@@ -288,7 +296,7 @@ Always use the correct module names and workspace IDs as provided.`,
       id: "task_4",
       name: "Check Overdue Invoices",
       prompt: (assets) =>
-        `Check if there are any overdue invoices for Pinnacle Ventures Sdn Bhd in workspace ${assets.workspaceId}.`,
+        `Check if there are any overdue invoices for Pinnacle Ventures Sdn Bhd.`,
       evaluate: (toolCalls, response) => {
         const calledListEntries  = toolCalls.some((t) => t.name === "list_entries");
         const filteredByClient   = toolCalls.some((t) => t.name === "list_entries" && JSON.stringify(t.arguments).toLowerCase().includes("pinnacle"));

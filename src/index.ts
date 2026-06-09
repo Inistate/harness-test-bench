@@ -22,12 +22,13 @@ function persistToEnv(vars: Record<string, string>): void {
   fs.writeFileSync(ENV_FILE, existing);
 }
 
-// ─── Load all scenarios ────────────────────────────────────────────────────────
+// ─── Load hardcoded TypeScript scenarios ──────────────────────────────────────
 const scenariosDir = path.join(__dirname, "scenarios");
-const SCENARIOS: Scenario[] = fs
+const HARDCODED_SCENARIOS: Scenario[] = fs
   .readdirSync(scenariosDir)
   .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts"))
-  .map((f) => require(path.join(scenariosDir, f)) as Scenario);
+  .map((f) => require(path.join(scenariosDir, f)) as unknown)
+  .filter((m): m is Scenario => typeof (m as Record<string, unknown>)?.id === "string");
 
 // ─── MCP config from env ───────────────────────────────────────────────────────
 const DEFAULT_API_URL = "https://app02.apps.inistate.com";
@@ -143,7 +144,7 @@ async function main(): Promise<void> {
     type: "checkbox", name: "scenarios", message: "Which scenarios to run?",
     choices: [
       { name: "All scenarios", value: "__all__" },
-      ...SCENARIOS.map((s) => ({ name: `${s.name} — ${s.description}`, value: s.id })),
+      ...HARDCODED_SCENARIOS.map((s) => ({ name: `${s.name} — ${s.description}`, value: s.id })),
     ],
     validate: (v: string[]) => v.length > 0 || "Select at least one scenario",
   }]);
@@ -159,8 +160,8 @@ async function main(): Promise<void> {
   }]);
 
   const selectedScenarios = scenarios.includes("__all__")
-    ? SCENARIOS
-    : SCENARIOS.filter((s) => scenarios.includes(s.id));
+    ? HARDCODED_SCENARIOS
+    : HARDCODED_SCENARIOS.filter((s) => scenarios.includes(s.id));
 
   // ─── Workspace ID per scenario ─────────────────────────────────────────────
   console.log("\n\x1b[38;5;208m⚠\x1b[0m  Each scenario runs against a specific workspace.");
