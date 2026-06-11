@@ -3,6 +3,7 @@ export interface Model {
   name: string;
   price_in: number;
   price_out: number;
+  local?: boolean;
 }
 
 export interface McpEnv {
@@ -62,6 +63,8 @@ export interface ModelRunResult {
   score: number;
   total: number;
   total_tokens: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
   total_cost: number;
   total_tool_calls: number;
   avg_latency_ms: number;

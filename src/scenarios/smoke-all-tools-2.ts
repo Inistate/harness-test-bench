@@ -130,9 +130,9 @@ const scenario: Scenario<ProjectManagementAssets> = {
   },
 
   system: (assets) => `You are an AI assistant for Inistate.
-Workspace ${assets.workspaceId} is already active — you do not need to pass workspaceId to any tool.
-Work through configure and runtime modes as required.
-Be concise and call the minimum tools needed to complete the task.`,
+  Workspace ${assets.workspaceId} is already active — you do not need to pass workspaceId to any tool.
+  Tools operate in two modes: configure and operate. If a tool returns a "disabled" error, call switch_mode with the appropriate mode before retrying.
+  Be concise and call the minimum tools needed to complete the task.`,
 
   tasks: [
     {
@@ -156,6 +156,9 @@ Be concise and call the minimum tools needed to complete the task.`,
       id: "task_2_module_design",
       name: "Module Design & Validation",
       maxSteps: 10,
+      setup: async (bridge: IBridge) => {
+        await bridge.callTool("switch_mode", { mode: "configure" });
+      },
       prompt:
         `Design a module for tracking client projects. It should have: ` +
         `project name, client, status, start date, deadline, owner, and budget. ` +
@@ -219,9 +222,9 @@ Be concise and call the minimum tools needed to complete the task.`,
         await ensureClientProjectsModule(bridge, assets);
       },
       prompt: (assets) =>
-        `Find the project tracking module, ` +
-        `then show me all active entries sorted by deadline. ` +
-        `Then pull up the full details and complete history of the one with the earliest deadline.`,
+        `Find the project tracking module, then list all active entries sorted by deadline. ` +
+        `For the entry with the earliest deadline: retrieve its full details and its complete entry history. ` +
+        `Then transition it to the next appropriate state based on its current state.`,
       evaluate: (toolCalls) => {
         const issues: string[] = [];
         // list_modules is the expected discovery path but the model may discover modules

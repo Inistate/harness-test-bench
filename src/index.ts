@@ -1,10 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import inquirer from "inquirer";
-import { MODELS } from "./data/models";
-import { runBenchmark } from "./core/runner";
-import { runChatAgent } from "./scenarios/chatAgent";
-import { loadGeneratedScenarios } from "./scenarios/builderAgent";
+import { MODELS, loadModels } from "./data/models";
+import { runBenchmark } from "./core/benchmark-runner";
+import { runChatAgent } from "./scenarios/scenario-creator";
+import { loadGeneratedScenarios } from "./scenarios/scenario-builder";
 import { MCPBridge } from "./bridges/mcp-bridge";
 import type { McpEnv, ResolvedConfig, Scenario } from "./types";
 
@@ -104,11 +104,11 @@ function validateEnv({ openRouterKey, mcpPath, mcpEnv }: ResolvedConfig): void {
   }
 }
 
-async function selectModels() {
+async function selectModels(models: typeof MODELS) {
   const selected = new Set<string>();
 
   console.log("\nAvailable models:");
-  MODELS.forEach((m) => console.log(`  • ${m.name} ($${m.price_in}/$${m.price_out} per 1M)`));
+  models.forEach((m) => console.log(`  • ${m.name} ($${m.price_in}/$${m.price_out} per 1M)`));
   console.log('\nType a name to search, pick from matches. Leave blank when done (or type "all").\n');
 
   while (true) {
@@ -116,9 +116,9 @@ async function selectModels() {
     const { query } = await inquirer.prompt<{ query: string }>([{ type: "input", name: "query", message: `${selectionLabel}Search models:` }]);
     const trimmed = query.trim().toLowerCase();
     if (!trimmed) break;
-    if (trimmed === "all") return MODELS;
+    if (trimmed === "all") return models;
 
-    const matches = MODELS.filter((m) => m.name.toLowerCase().includes(trimmed) || m.id.toLowerCase().includes(trimmed));
+    const matches = models.filter((m) => m.name.toLowerCase().includes(trimmed) || m.id.toLowerCase().includes(trimmed));
     if (matches.length === 0) { console.log(`  No models match "${query.trim()}"\n`); continue; }
 
     const { picked } = await inquirer.prompt<{ picked: string[] }>([{
@@ -132,7 +132,7 @@ async function selectModels() {
     }
   }
 
-  return selected.size === 0 ? MODELS : MODELS.filter((m) => selected.has(m.id));
+  return selected.size === 0 ? models : models.filter((m) => selected.has(m.id));
 }
 
 async function main(): Promise<void> {
@@ -142,6 +142,10 @@ async function main(): Promise<void> {
 
   const config = await resolveConfig();
   validateEnv(config);
+
+  process.stdout.write("Fetching live model prices from OpenRouter... ");
+  const models = await loadModels(config.openRouterKey);
+  console.log("done");
 
   const { action } = await inquirer.prompt<{ action: string }>([{
     type: "list",
@@ -188,7 +192,7 @@ async function main(): Promise<void> {
     validate: (v: string[]) => v.length > 0 || "Select at least one scenario",
   }]);
 
-  const selectedModels = await selectModels();
+  const selectedModels = await selectModels(models);
 
   const { runsInput } = await inquirer.prompt<{ runsInput: string }>([{
     type: "input", name: "runsInput", message: "Runs per task?", default: "1",
