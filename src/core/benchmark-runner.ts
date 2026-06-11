@@ -157,6 +157,11 @@ async function runTask(
   try {
     const start = Date.now();
 
+    // Capture per-step usage via stopWhen closure — response.usage only covers the last step
+    type StepUsage = { usage?: { inputTokens?: number; outputTokens?: number } };
+    let capturedSteps: StepUsage[] = [];
+    const maxSteps = task.maxSteps ?? 12;
+
     const result = openrouter.callModel({
       model: model.id,
       input: fromChatMessages([
@@ -164,7 +169,10 @@ async function runTask(
         { role: "user", content: prompt },
       ]),
       tools,
-      stopWhen: stepCountIs(task.maxSteps ?? 12),
+      stopWhen: (ctx) => {
+        capturedSteps = ctx.steps as unknown as StepUsage[];
+        return ctx.steps.length >= maxSteps;
+      },
     });
 
     // Collect reasoning concurrently while the model runs
@@ -183,9 +191,14 @@ async function runTask(
     ]);
 
     const latency = Date.now() - start;
-    const usage = response.usage;
-    const inputTokens = usage?.inputTokens ?? 0;
-    const outputTokens = usage?.outputTokens ?? 0;
+
+    // Sum tokens across all steps; fall back to final response.usage for single-step runs
+    const inputTokens = capturedSteps.length > 0
+      ? capturedSteps.reduce((s, step) => s + (step.usage?.inputTokens ?? 0), 0)
+      : (response.usage?.inputTokens ?? 0);
+    const outputTokens = capturedSteps.length > 0
+      ? capturedSteps.reduce((s, step) => s + (step.usage?.outputTokens ?? 0), 0)
+      : (response.usage?.outputTokens ?? 0);
     const cost = (inputTokens / 1e6) * model.price_in + (outputTokens / 1e6) * model.price_out;
 
     const toolCalls = await collectExecutedToolCalls(result);
@@ -235,6 +248,38 @@ async function runTask(
   }
 }
 
+// ─── Qwen3-Coder XML tool call parser ─────────────────────────────────────────
+// mlx_lm 0.29.x has no built-in XML converter, so tool calls land in content
+// as raw XML. This extracts them into OpenAI-compatible tool_calls format.
+function extractXmlToolCalls(
+  content: string
+): Array<{ id: string; type: "function"; function: { name: string; arguments: string } }> {
+  const results: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }> = [];
+  // Match either <tool_call>...</tool_call> blocks or bare <function=...>...</function> blocks
+  const blockRe = /<tool_call>([\s\S]*?)<\/tool_call>|(<function=[^>]+>[\s\S]*?<\/function>)/g;
+  let block: RegExpExecArray | null;
+  while ((block = blockRe.exec(content)) !== null) {
+    const inner = (block[1] ?? block[2] ?? "").trim();
+    const nameMatch = /<function=([^>]+)>/.exec(inner);
+    if (!nameMatch) continue;
+    const name = nameMatch[1].trim();
+    const args: Record<string, unknown> = {};
+    const paramRe = /<parameter=([^>]+)>([\s\S]*?)<\/parameter>/g;
+    let pm: RegExpExecArray | null;
+    while ((pm = paramRe.exec(inner)) !== null) {
+      const key = pm[1].trim();
+      const raw = pm[2].trim();
+      try { args[key] = JSON.parse(raw); } catch { args[key] = raw; }
+    }
+    results.push({
+      id: `call_${Date.now()}_${results.length}`,
+      type: "function",
+      function: { name, arguments: JSON.stringify(args) },
+    });
+  }
+  return results;
+}
+
 // ─── Local model runner (fetch → /chat/completions, bypasses OpenRouter SDK) ───
 type LocalMsg =
   | { role: "system" | "user"; content: string }
@@ -271,19 +316,26 @@ async function runTaskLocal(
   let finalText = "";
   let inputTokens = 0;
   let outputTokens = 0;
+  let taskCost = 0;
   const maxSteps = task.maxSteps ?? 12;
 
   for (let step = 0; step < maxSteps; step++) {
-    let res: Response;
-    try {
-      res = await fetch(`${localBaseUrl}/chat/completions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer local" },
-        body: JSON.stringify({ model: process.env.LOCAL_MODEL_ID ?? model.id, messages, tools: openaiTools, tool_choice: "auto" }),
-      });
-    } catch (e) {
-      return { skipped: true, reason: `Local model unreachable: ${(e as Error).message}` };
+    const requestBody = JSON.stringify({ model: process.env.LOCAL_MODEL_ID ?? model.id, messages, tools: openaiTools, tool_choice: "auto", max_tokens: 4096, transforms: ["usage"] });
+    let res: Response | undefined;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        res = await fetch(`${localBaseUrl}/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer local" },
+          body: requestBody,
+        });
+        break;
+      } catch {
+        if (attempt === 2) return { skipped: true, reason: "Local model unreachable after 3 attempts" };
+        await sleep(3000);
+      }
     }
+    if (!res) return { skipped: true, reason: "Local model unreachable" };
 
     if (!res.ok) {
       const body = await res.text();
@@ -292,22 +344,28 @@ async function runTaskLocal(
 
     const data = await res.json() as {
       choices: Array<{ message: { role: string; content: string | null; tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }> }; finish_reason: string }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number };
+      usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
     };
 
     inputTokens  += data.usage?.prompt_tokens  ?? 0;
     outputTokens += data.usage?.completion_tokens ?? 0;
+    taskCost     += data.usage?.cost ?? 0;
 
     const msg = data.choices[0].message;
 
-    if (!msg.tool_calls || msg.tool_calls.length === 0) {
-      finalText = msg.content ?? "";
+    // mlx_lm may return XML tool calls in content instead of tool_calls
+    const activeCalls = (msg.tool_calls && msg.tool_calls.length > 0)
+      ? msg.tool_calls
+      : extractXmlToolCalls(msg.content ?? "");
+
+    if (activeCalls.length === 0) {
+      finalText = (msg.content ?? "").replace(/<\|im_end\|>/g, "").trim();
       break;
     }
 
-    messages.push({ role: "assistant", content: msg.content ?? null, tool_calls: msg.tool_calls });
+    messages.push({ role: "assistant", content: msg.content ?? null, tool_calls: activeCalls });
 
-    for (const tc of msg.tool_calls) {
+    for (const tc of activeCalls) {
       let result: unknown;
       let parsedArgs: Record<string, unknown> = {};
       try { parsedArgs = JSON.parse(tc.function.arguments) as Record<string, unknown>; } catch { /* keep empty */ }
@@ -332,7 +390,7 @@ async function runTaskLocal(
     latency_ms: latency,
     input_tokens: inputTokens,
     output_tokens: outputTokens,
-    cost_usd: 0,
+    cost_usd: taskCost,
     tool_calls: collectedToolCalls.map((t) => t.name),
     tool_call_details: collectedToolCalls,
     response_preview: finalText.slice(0, 200),
@@ -357,6 +415,8 @@ async function runScenarioForModel(
     score: 0,
     total: scenario.tasks.length,
     total_tokens: 0,
+    total_input_tokens: 0,
+    total_output_tokens: 0,
     total_cost: 0,
     total_tool_calls: 0,
     avg_latency_ms: 0,
@@ -378,7 +438,7 @@ async function runScenarioForModel(
     }
 
     const system = typeof scenario.system === "function" ? scenario.system(assets) : scenario.system;
-    const result = localBaseUrl
+    const result = (model.local && localBaseUrl)
       ? await runTaskLocal(localBaseUrl, model, task as Parameters<typeof runTask>[2], assets, rawTools, bridge, system)
       : await runTask(openrouter, model, task as Parameters<typeof runTask>[2], assets, tools, system, logReasoning);
 
@@ -391,7 +451,7 @@ async function runScenarioForModel(
         break;
       }
       continue;
-    }
+    }2
 
     const icon = result.success ? tick : cross;
     const costStr = (result.cost_usd ?? 0) > 0 ? `$${result.cost_usd!.toFixed(6)}` : "$0.000000";
@@ -408,8 +468,10 @@ async function runScenarioForModel(
 
     modelResults.tasks[task.id] = result;
     if (result.success) modelResults.score++;
+    modelResults.total_input_tokens  += result.input_tokens  ?? 0;
+    modelResults.total_output_tokens += result.output_tokens ?? 0;
     modelResults.total_tokens += (result.input_tokens ?? 0) + (result.output_tokens ?? 0);
-    modelResults.total_cost += result.cost_usd ?? 0;
+    modelResults.total_cost   += result.cost_usd ?? 0;
     modelResults.total_tool_calls += result.tool_calls?.length ?? 0;
 
     if (i < scenario.tasks.length - 1) await sleep(DELAY_BETWEEN_TASKS);
@@ -437,8 +499,8 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<Record<stri
   const localBaseUrl = process.env.LOCAL_BASE_URL;
   const openrouter = new OpenRouter({
     apiKey: openRouterKey || process.env.OPENROUTER_API_KEY || "local",
-    ...(localBaseUrl && { serverURL: localBaseUrl }),
   });
+
   const allResults: Record<string, ScenarioResult> = {};
 
   for (const scenario of scenarios) {
@@ -562,7 +624,7 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<Record<stri
   console.log(`\nResults saved → ${outPath}`);
 
   try {
-    const { visualise } = require("../display/visualise") as { visualise: (p: string) => void };
+    const { visualise } = require("../display/results-visualiser") as { visualise: (p: string) => void };
     visualise(outPath);
   } catch {
     // visualise is optional

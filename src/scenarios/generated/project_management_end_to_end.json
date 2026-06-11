@@ -1,0 +1,49 @@
+{
+  "id": "project_management_end_to_end",
+  "name": "End-to-End Project Management: Creation to Closure",
+  "description": "Benchmark an AI model on an end-to-end Project workflow: create a project, add two linked tasks, then close the project and cascade the closure to all tasks, with audit/history checks.",
+  "system": "You are an assistant in the Inistate TestBench. You operate against an active workspace. Do not pass workspaceId to tool calls; use ${workspaceId} only in prompts. The model should design and execute a coherent sequence of MCP tool calls to validate end-to-end project management flows.",
+  "setupPrompt": "Setup for the benchmark: create the supporting data and baseline assets so Task 1 can create a fresh project and two tasks, then Task 2 can close the project and cascade. Create/ensured: - Core states: Draft, Open, In Progress, Closed. - Core fields: name, description, startDate, dueDate, status, assignee, priority, owner, tags, and a link field projectId on tasks. - A PM user account (pm_jane_doe) ready to be assigned. - A sample project template or seed data if needed. Ensure there is no pre-existing project named 'Apollo Initiative' to avoid cascading failures from previous runs. After setup, output <assets>{workspaceId, pmUserId, projectTemplateId, projectId, task1Id, task2Id}</assets>",
+  "tasks": [
+    {
+      "id": "task_create_project_and_two_tasks",
+      "name": "Create a new project and add two tasks",
+      "prompt": "Using workspace ${workspaceId}, create a new project named 'Apollo Initiative' with description 'End-to-end benchmark for Inistate', startDate = today, dueDate = today + 30 days, status = Open, owner = ${pmUserId}, assignee = ${pmUserId}, priority = High, and tags = ['benchmark','end-to-end']. Then create two tasks linked to this project: Task A named 'Define Scope' with description 'Define project scope and boundaries', dueDate = startDate + 7 days, status = Open, priority = High; Task B named 'Implement Phase 1' with description 'Implement core features', dueDate = startDate + 14 days, status = Open, priority = Medium. Ensure the project’s taskIds list includes both created task IDs.",
+      "setupPrompt": "Pre-task reset: If a project named 'Apollo Initiative' exists in the workspace from a prior run, delete it to guarantee a clean start. Ensure the PM user 'pm_jane_doe' exists and is assignable. End with: output <assets>{workspaceId, pmUserId, projectTemplateId, projectId, task1Id, task2Id}</assets>",
+      "checks": [
+        "called:get_form",
+        "arg:submit_activity.module=Project",
+        "arg:submit_activity.action=create",
+        "success:submit_activity",
+        "arg:submit_activity.module=Task",
+        "success:submit_activity",
+        "not_called:upload_file",
+        "arg:get_entry_history.entryId=${projectId}"
+      ],
+      "ai": "",
+      "maxSteps": 10
+    },
+    {
+      "id": "task_close_project_and_cascade",
+      "name": "Close the project and cascade closure to all tasks",
+      "prompt": "Using workspace ${workspaceId}, update the project ${projectId} status to 'Closed' and cascade-close all linked tasks (${task1Id}, ${task2Id}). Verify that both tasks reflect status 'Closed' and that an audit/history entry exists for the project and for each task. Use the same IDs produced in Task 1.",
+      "setupPrompt": "Post-Task-1 baseline: ensure the project is in a state where closure is valid (Open or In Progress) and tasks remain Open. If needed, reset the project to Open and tasks to Open to guarantee a clean cascade. End with: output <assets>{workspaceId, projectId, task1Id, task2Id}</assets>",
+      "checks": [
+        "called:submit_activity",
+        "arg:submit_activity.module=Project",
+        "arg:submit_activity.action=update",
+        "arg:submit_activity.newStatus=Closed",
+        "success:submit_activity",
+        "arg:submit_activity.module=Task",
+        "arg:submit_activity.newStatus=Closed",
+        "success:submit_activity",
+        "called:get_entry_history",
+        "arg:get_entry_history.entryId=${projectId}",
+        "arg:get_entry_history.entryId=${task1Id}",
+        "arg:get_entry_history.entryId=${task2Id}"
+      ],
+      "ai": "",
+      "maxSteps": 12
+    }
+  ]
+}

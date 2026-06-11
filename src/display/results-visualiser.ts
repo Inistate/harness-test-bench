@@ -220,13 +220,9 @@ function drawTokenCostTable(scenarioData: ScenarioResult): void {
 
     let totalIn = 0, totalOut = 0, totalCost = 0;
     for (const run of validRuns) {
-      for (const task of Object.values(run.tasks)) {
-        if (!task.skipped) {
-          totalIn   += task.input_tokens  ?? 0;
-          totalOut  += task.output_tokens ?? 0;
-          totalCost += task.cost_usd      ?? 0;
-        }
-      }
+      totalIn   += run.total_input_tokens  ?? 0;
+      totalOut  += run.total_output_tokens ?? 0;
+      totalCost += run.total_cost;
     }
     const n = validRuns.length;
     const label = modelId.split("/").pop()!.slice(0, 21).padEnd(22);
@@ -271,6 +267,104 @@ function drawLatencyToolTable(scenarioData: ScenarioResult): void {
     console.log(label + (latCol + `${avgLatency}ms` + c.reset).padEnd(22) + String(totalCalls).padEnd(14) + callsPerTask);
   }
   divider(65);
+}
+
+function drawPerTaskTokens(scenarioData: ScenarioResult): void {
+  const taskIds = Array.from(new Set(
+    Object.values(scenarioData.models).flatMap((runs) =>
+      runs.flatMap((r) => (r.skipped ? [] : Object.keys(r.tasks)))
+    )
+  ));
+  if (taskIds.length === 0) return;
+
+  const modelColW = 22;
+  const taskColW  = 10;
+  const totalW    = modelColW + taskIds.length * (taskColW + 1) + 1;
+
+  console.log(`\n${c.bold}Per-Task Token Usage${c.reset}`);
+  divider(totalW);
+
+  let headerRow = " ".repeat(modelColW) + " ";
+  for (const id of taskIds) {
+    const label = id.replace(/^task_\d+_/, "").slice(0, taskColW - 2);
+    headerRow += c.dim + label.padEnd(taskColW) + c.reset + " ";
+  }
+  console.log(headerRow);
+  divider(totalW);
+
+  for (const modelId of sortedModelIds(scenarioData)) {
+    const validRuns = (scenarioData.models[modelId] ?? []).filter((r) => !r.skipped);
+    if (validRuns.length === 0) continue;
+
+    const label = modelId.split("/").pop()!.slice(0, modelColW - 1).padEnd(modelColW);
+    let row = c.bold + label + c.reset + " ";
+    for (const id of taskIds) {
+      const results = validRuns.map((r) => r.tasks?.[id]).filter((t) => t && !t.skipped);
+      if (results.length === 0) { row += c.dim + "—".padEnd(taskColW) + c.reset + " "; continue; }
+      const avgTokens = Math.round(
+        results.reduce((s, t) => s + (t.input_tokens ?? 0) + (t.output_tokens ?? 0), 0) / results.length
+      );
+      const col = avgTokens < 5000 ? c.green : avgTokens < 15000 ? c.yellow : c.red;
+      row += col + fmtTokens(avgTokens).padEnd(taskColW) + c.reset + " ";
+    }
+    console.log(row);
+  }
+  divider(totalW);
+}
+
+function drawPerTaskToolCalls(scenarioData: ScenarioResult): void {
+  const taskIds = Array.from(new Set(
+    Object.values(scenarioData.models).flatMap((runs) =>
+      runs.flatMap((r) => (r.skipped ? [] : Object.keys(r.tasks)))
+    )
+  ));
+  if (taskIds.length === 0) return;
+
+  const modelColW = 22;
+  const taskColW  = 28;
+  const totalW    = modelColW + taskIds.length * (taskColW + 1) + 1;
+
+  console.log(`\n${c.bold}Per-Task Tool Calls${c.reset}`);
+  divider(totalW);
+
+  let headerRow = " ".repeat(modelColW) + " ";
+  for (const id of taskIds) {
+    const label = id.replace(/^task_\d+_/, "").slice(0, taskColW - 2);
+    headerRow += c.dim + label.padEnd(taskColW) + c.reset + " ";
+  }
+  console.log(headerRow);
+  divider(totalW);
+
+  for (const modelId of sortedModelIds(scenarioData)) {
+    const validRuns = (scenarioData.models[modelId] ?? []).filter((r) => !r.skipped);
+    if (validRuns.length === 0) continue;
+
+    const label = modelId.split("/").pop()!.slice(0, modelColW - 1).padEnd(modelColW);
+    let row = c.bold + label + c.reset + " ";
+    for (const id of taskIds) {
+      const results = validRuns.map((r) => r.tasks?.[id]).filter((t) => t && !t.skipped);
+      if (results.length === 0) { row += c.dim + "—".padEnd(taskColW) + c.reset + " "; continue; }
+
+      const freq: Record<string, number> = {};
+      for (const t of results) {
+        for (const name of t.tool_calls ?? []) {
+          freq[name] = (freq[name] ?? 0) + 1;
+        }
+      }
+      const n = validRuns.length;
+      const parts = Object.entries(freq)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => {
+          const avg = count / n;
+          return avg > 1 ? `${name}(×${avg.toFixed(0)})` : name;
+        });
+      const total = Object.values(freq).reduce((s, v) => s + v, 0) / n;
+      const summary = `[${total.toFixed(0)}] ${parts.join(", ")}`.slice(0, taskColW - 1);
+      row += c.cyan + summary.padEnd(taskColW) + c.reset + " ";
+    }
+    console.log(row);
+  }
+  divider(totalW);
 }
 
 function drawIssuesSummary(scenarioData: ScenarioResult): void {
@@ -336,7 +430,9 @@ export function visualise(filePath?: string): void {
     drawTaskGrid(scenData);
     drawScoreChart(scenData);
     drawTokenCostTable(scenData);
+    drawPerTaskTokens(scenData);
     drawLatencyToolTable(scenData);
+    drawPerTaskToolCalls(scenData);
     drawHallucinationSummary(scenData);
     drawIssuesSummary(scenData);
   }

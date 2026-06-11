@@ -7,7 +7,9 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "visualise": "tsx src/display/visualise.ts"
+    "visualise": "tsx src/display/results-visualiser.ts",
+    "analyse": "tsx src/display/results-analyser.ts",
+    "merge": "tsx src/display/merge-results.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

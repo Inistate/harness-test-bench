@@ -1,5 +1,29 @@
 import type { Model } from "../types";
 
+export async function loadModels(apiKey: string): Promise<Model[]> {
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/models", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json() as {
+      data: Array<{ id: string; pricing: { prompt: string; completion: string } }>;
+    };
+    const priceMap = new Map(
+      data.data.map((m) => [m.id, {
+        price_in:  Number((parseFloat(m.pricing.prompt) * 1e6).toFixed(2)),
+        price_out:  Number((parseFloat(m.pricing.completion) * 1e6).toFixed(2)),
+      }])
+    );
+    return MODELS.map((model) => {
+      const live = priceMap.get(model.id);
+      return live ? { ...model, ...live } : model;
+    });
+  } catch {
+    return MODELS;
+  }
+}
+
 export const MODELS: Model[] = [
   // Anthropic Claude
   { id: "anthropic/claude-opus-4.8",   name: "Claude Opus 4.8",   price_in: 5.00,  price_out: 25.00 },
@@ -47,5 +71,5 @@ export const MODELS: Model[] = [
   { id: "minimax/minimax-m2.5", name: "MiniMax M2.5", price_in: 0.15, price_out: 1.15 },
 
   // Local models (served via mlx_lm at LOCAL_BASE_URL)
-  { id: "qwen3-coder-30b-local", name: "Qwen3-Coder 30B (local)", price_in: 0, price_out: 0 },
+  { id: "qwen3-coder-30b-local", name: "Qwen3-Coder 30B (local)", price_in: 0, price_out: 0, local: true},
 ];
