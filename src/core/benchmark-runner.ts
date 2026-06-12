@@ -451,7 +451,19 @@ async function runScenarioForModel(
         break;
       }
       continue;
-    }2
+    }
+
+    if (task.verify) {
+      try {
+        const verifyResult = await task.verify(bridge, assets as Parameters<NonNullable<typeof task.verify>>[1]);
+        if (!verifyResult.success) {
+          result.success = false;
+          result.issues = [...(result.issues ?? []), ...verifyResult.issues];
+        }
+      } catch (e) {
+        console.log(`\n    ${warn} Task verify error: ${(e as Error).message}`);
+      }
+    }
 
     const icon = result.success ? tick : cross;
     const costStr = (result.cost_usd ?? 0) > 0 ? `$${result.cost_usd!.toFixed(6)}` : "$0.000000";

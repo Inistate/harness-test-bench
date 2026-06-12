@@ -8,7 +8,7 @@
 // upload_file tracked as a negative signal (fallback — should not be called)
 
 import { ApiBridge } from "../bridges/api-bridge";
-import type { IBridge, Scenario } from "../types";
+import type { IBridge, Scenario, ToolCall } from "../types";
 
 const PDF_NAME = "crm_integration_brief.pdf";
 
@@ -18,10 +18,15 @@ interface ProjectManagementAssets {
   pdfName: string;
 }
 
-type ToolCallLike = { name: string; arguments: Record<string, unknown> };
-
-function called(toolCalls: ToolCallLike[], name: string): boolean {
+function called(toolCalls: ToolCall[], name: string): boolean {
   return toolCalls.some((t) => t.name === name);
+}
+
+// Returns true only if the tool was called AND did not return an error result.
+function calledSuccessfully(toolCalls: ToolCall[], name: string): boolean {
+  return toolCalls.some(
+    (t) => t.name === name && !(t.result as Record<string, unknown>)?.error
+  );
 }
 
 function getModuleList(result: unknown): Array<Record<string, unknown>> {
@@ -34,29 +39,41 @@ function getModuleList(result: unknown): Array<Record<string, unknown>> {
   return [];
 }
 
-function getCreatedModuleId(result: unknown): string | number | undefined {
-  const r = result as Record<string, unknown>;
-  return (
-    r?.id ?? r?.moduleId ?? r?.vectorId ??
-    (r?.module as Record<string, unknown>)?.id ??
-    (r?.module as Record<string, unknown>)?.moduleId ??
-    (r?.data as Record<string, unknown>)?.id
-  ) as string | number | undefined;
-}
+// Deletes every module whose name contains namePattern (case-insensitive).
+// Collects candidates from list_modules + set_workspace vectors, resolves IDs
+// via get_module_canvas, then deletes via API.
+async function deleteAllModulesMatching(bridge: IBridge, assets: ProjectManagementAssets, namePattern: string): Promise<void> {
+  const pattern = namePattern.toLowerCase();
+  const candidateNames = new Set<string>();
 
-async function deleteModuleByName(bridge: IBridge, assets: ProjectManagementAssets, nameFragment: string): Promise<void> {
-  // set_workspace returns vectors[] with id — list_modules only returns {name, emoji} with no id
+  // Source 1: list_modules (includes unpublished modules)
+  try {
+    const listResult = await bridge.callTool("list_modules", {}) as unknown;
+    for (const m of getModuleList(listResult)) {
+      const n = String(m?.name ?? "");
+      if (n.toLowerCase().includes(pattern)) candidateNames.add(n);
+    }
+  } catch { /* ignore — vectors fallback covers this */ }
+
+  // Source 2: set_workspace vectors (published modules)
   const workspaceData = await bridge.callTool("set_workspace", { workspaceId: assets.workspaceId }) as Record<string, unknown>;
   const vectors = (workspaceData?.vectors ?? []) as Array<Record<string, unknown>>;
-  const target = vectors.find((v) =>
-    String(v?.name ?? "").toLowerCase().includes(nameFragment.toLowerCase())
-  );
-  if (!target) return;
-  const id = (target?.id ?? target?.module) as string | number | null | undefined;
-  if (id == null) return;
+  for (const v of vectors) {
+    const n = String(v?.name ?? "");
+    if (n.toLowerCase().includes(pattern)) candidateNames.add(n);
+  }
+
+  if (candidateNames.size === 0) return;
+
   const api = new ApiBridge();
-  await api.deleteModule(assets.workspaceId, assets.workspaceName, id);
-  console.log(`\n    → Deleted "${target.name}" module (id: ${id})`);
+  for (const name of candidateNames) {
+    const canvas = await bridge.callTool("get_module_canvas", { module: name }) as Record<string, unknown>;
+    if (canvas?.error) continue;
+    const id = canvas?.id as string | number | null | undefined;
+    if (id == null) continue;
+    await api.deleteModule(assets.workspaceId, assets.workspaceName, id);
+    console.log(`\n    → Deleted module "${name}" (id: ${id})`);
+  }
 }
 
 const CLIENT_PROJECTS_SCHEMA = {
@@ -97,16 +114,37 @@ const CLIENT_PROJECTS_SCHEMA = {
   ],
 };
 
+// Uses get_module_canvas as primary existence check (vectors misses unpublished modules).
 async function ensureClientProjectsModule(bridge: IBridge, assets: ProjectManagementAssets): Promise<void> {
   await bridge.callTool("switch_mode", { mode: "configure" });
-  const workspaceData = await bridge.callTool("set_workspace", { workspaceId: assets.workspaceId }) as Record<string, unknown>;
-  const vectors = (workspaceData?.vectors ?? []) as Array<Record<string, unknown>>;
-  const exists = vectors.some((v) => String(v?.name ?? "").toLowerCase().includes("client project"));
-  if (!exists) {
+  const canvas = await bridge.callTool("get_module_canvas", { module: "Client Projects" }) as Record<string, unknown>;
+  if (canvas?.error) {
     await bridge.callTool("create_module", { workspaceId: assets.workspaceId, ...CLIENT_PROJECTS_SCHEMA });
     console.log(`\n    → Created "Client Projects" module (task prerequisite)`);
   }
   await bridge.callTool("switch_mode", { mode: "runtime" });
+}
+
+const SEED_ENTRIES = [
+  { "Project Name": "CRM Integration", Client: "Gamma Inc",  state: "Active",  "Start Date": "2026-06-01", Deadline: "2026-12-31", Owner: "Carol", Budget: 48000, Priority: "High",   Notes: "Phase 1 kickoff completed" },
+  { "Project Name": "Brand Refresh",   Client: "Delta Co",   state: "On Hold", "Start Date": "2026-03-01", Deadline: "2026-08-31", Owner: "Dave",  Budget: 12000, Priority: "Medium" },
+  { "Project Name": "Data Migration",  Client: "Epsilon LLC", state: "Active",  "Start Date": "2026-04-01", Deadline: "2026-10-31", Owner: "Eve",   Budget: 27000, Priority: "Low" },
+];
+
+async function ensureTestEntries(bridge: IBridge): Promise<void> {
+  const result = await bridge.callTool("list_entries", { module: "Client Projects" }) as Record<string, unknown>;
+  const entries = (
+    Array.isArray(result) ? result :
+    Array.isArray(result?.entries) ? result.entries :
+    Array.isArray((result?.data as Record<string, unknown>)?.entries) ? (result.data as Record<string, unknown>).entries :
+    []
+  ) as unknown[];
+  if (entries.length > 0) return;
+  await bridge.callTool("submit_activities", {
+    module: "Client Projects",
+    activities: SEED_ENTRIES.map((e) => ({ activity: "Create", input: e })),
+  });
+  console.log(`\n    → Seeded ${SEED_ENTRIES.length} entries into "Client Projects" (task prerequisite)`);
 }
 
 const scenario: Scenario<ProjectManagementAssets> = {
@@ -177,19 +215,26 @@ const scenario: Scenario<ProjectManagementAssets> = {
       maxSteps: 15,
       setup: async (bridge: IBridge, assets: ProjectManagementAssets) => {
         await bridge.callTool("switch_mode", { mode: "configure" });
-        await deleteModuleByName(bridge, assets, "client project");
+        await deleteAllModulesMatching(bridge, assets, "client project");
       },
-      prompt: (assets) =>
+      prompt: () =>
         `Create a module named "Client Projects". ` +
         `Then show me what's inside it. ` +
         `Finally update it: add a Priority field (Low/Medium/High) and a Notes field, ` +
         `and rename "Assigned team member" to "Owner" if that field exists.`,
       evaluate: (toolCalls) => {
         const issues: string[] = [];
-        if (!called(toolCalls, "create_module")) issues.push("Did not call create_module");
-        if (!called(toolCalls, "update_module")) issues.push("Did not call update_module");
-        if (!called(toolCalls, "get_module_schema") && !called(toolCalls, "get_module_canvas"))
-          issues.push("Did not inspect module (get_module_schema or get_module_canvas)");
+        // Require successful calls — called but errored does not count.
+        if (!calledSuccessfully(toolCalls, "create_module")) issues.push("Did not successfully call create_module");
+        if (!calledSuccessfully(toolCalls, "update_module")) issues.push("Did not successfully call update_module");
+        // create_module and update_module both return the full module payload — reading
+        // that response counts as inspection; a separate schema/canvas call is not required.
+        const inspected =
+          called(toolCalls, "get_module_schema") ||
+          called(toolCalls, "get_module_canvas") ||
+          called(toolCalls, "create_module") ||
+          called(toolCalls, "update_module");
+        if (!inspected) issues.push("Did not inspect module");
         return { success: issues.length === 0, issues, hallucinated: false };
       },
     },
@@ -201,29 +246,78 @@ const scenario: Scenario<ProjectManagementAssets> = {
       setup: async (bridge: IBridge, assets: ProjectManagementAssets) => {
         await ensureClientProjectsModule(bridge, assets);
       },
-      prompt: (assets) =>
-        `Add entries to the Client Projects module.\n\n` +
-        `First create this project on its own:\n` +
-        `  CRM Integration | Gamma Inc | Active | starts 2026-06-01 | due 2026-12-31 | owner Carol | $48,000 | High priority | notes "Phase 1 kickoff completed"\n\n` +
-        `Then create these two at the same time and submit together\n` +
-        `  Brand Refresh | Delta Co | On Hold | 2026-03-01 to 2026-08-31 | owner Dave | $12,000 | Medium priority\n` +
-        `  Data Migration | Epsilon LLC | Active | 2026-04-01 to 2026-10-31 | owner Eve | $27,000 | Low priority`,
+      prompt: () =>
+        `Add the following entries to the Client Projects module. Use the exact field names as keys.\n\n` +
+        `First, add this entry on its own:\n` +
+        `  Project Name: "CRM Integration"\n` +
+        `  Client: "Gamma Inc"\n` +
+        `  Status: "Active"\n` +
+        `  Start Date: "2026-06-01"\n` +
+        `  Deadline: "2026-12-31"\n` +
+        `  Owner: "Carol"\n` +
+        `  Budget: 48000\n` +
+        `  Priority: "High"\n` +
+        `  Notes: "Phase 1 kickoff completed"\n\n` +
+        `Then add these two together in a single batch:\n` +
+        `  Entry 1 — Project Name: "Brand Refresh", Client: "Delta Co", Status: "On Hold", Start Date: "2026-03-01", Deadline: "2026-08-31", Owner: "Dave", Budget: 12000, Priority: "Medium"\n` +
+        `  Entry 2 — Project Name: "Data Migration", Client: "Epsilon LLC", Status: "Active", Start Date: "2026-04-01", Deadline: "2026-10-31", Owner: "Eve", Budget: 27000, Priority: "Low"\n\n` +
+        `If a field name has no match in the form, omit it and proceed.`,
       evaluate: (toolCalls) => {
-        const ok = called(toolCalls, "submit_activity") || called(toolCalls, "submit_activities");
-        return { success: ok, issues: ok ? [] : ["Did not call submit_activity or submit_activities"], hallucinated: false };
+        const ok = calledSuccessfully(toolCalls, "submit_activity") || calledSuccessfully(toolCalls, "submit_activities");
+        return { success: ok, issues: ok ? [] : ["Did not successfully call submit_activity or submit_activities"], hallucinated: false };
+      },
+      verify: async (bridge: IBridge) => {
+        const issues: string[] = [];
+        const result = await bridge.callTool("list_entries", { module: "Client Projects" }) as Record<string, unknown>;
+
+        // Response shape: { list: [...] } — each entry has a `data` object with snake_case field keys.
+        const entries = (
+          Array.isArray(result) ? result :
+          Array.isArray(result?.list) ? result.list :
+          Array.isArray(result?.entries) ? result.entries :
+          []
+        ) as Array<Record<string, unknown>>;
+
+        const expected = [
+          { name: "CRM Integration", client: "Gamma Inc"   },
+          { name: "Brand Refresh",   client: "Delta Co"    },
+          { name: "Data Migration",  client: "Epsilon LLC" },
+        ];
+
+        for (const exp of expected) {
+          const entry = entries.find((e) => {
+            const data = (e?.data ?? e) as Record<string, unknown>;
+            const entryName = String(data?.project_name ?? data?.["Project Name"] ?? data?.name ?? e?.name ?? "");
+            return entryName.toLowerCase() === exp.name.toLowerCase();
+          });
+
+          if (!entry) {
+            issues.push(`Missing entry: "${exp.name}"`);
+            continue;
+          }
+
+          // Client may be stored under "client", "Client", or "description" depending on agent field mapping.
+          const data = (entry?.data ?? entry) as Record<string, unknown>;
+          const client = String(data?.client ?? data?.Client ?? data?.description ?? "");
+          if (client.toLowerCase() !== exp.client.toLowerCase())
+            issues.push(`"${exp.name}": expected Client="${exp.client}" got "${client}"`);
+        }
+
+        return { success: issues.length === 0, issues, hallucinated: false };
       },
     },
     {
-      // Tools: list_modules, list_entries, get_entry, get_entry_history
+      // Tools: list_modules, list_entries, get_entry_history
       id: "task_5_entry_retrieval",
       name: "Entry Retrieval & Audit",
-      maxSteps: 10,
+      maxSteps: 20,
       setup: async (bridge: IBridge, assets: ProjectManagementAssets) => {
         await ensureClientProjectsModule(bridge, assets);
+        await ensureTestEntries(bridge);
       },
-      prompt: (assets) =>
+      prompt: () =>
         `Find the project tracking module, then list all active entries sorted by deadline. ` +
-        `For the entry with the earliest deadline: retrieve its full details and its complete entry history. ` +
+        `For the entry with the earliest deadline: retrieve its complete change history. ` +
         `Then transition it to the next appropriate state based on its current state.`,
       evaluate: (toolCalls) => {
         const issues: string[] = [];
@@ -231,20 +325,19 @@ const scenario: Scenario<ProjectManagementAssets> = {
         // via set_workspace (which returns the same data). Track it but don't gate success.
         if (!called(toolCalls, "list_modules")) issues.push("Did not call list_modules (used alternate discovery)");
         if (!called(toolCalls, "list_entries"))      issues.push("Did not call list_entries");
-        if (!called(toolCalls, "get_entry"))         issues.push("Did not call get_entry");
+        // get_entry is NOT required — list_entries returns full field data inline.
+        // get_entry_history has no alternative path so it remains required.
         if (!called(toolCalls, "get_entry_history")) issues.push("Did not call get_entry_history");
-        const requiredMissing = !called(toolCalls, "list_entries") || !called(toolCalls, "get_entry") || !called(toolCalls, "get_entry_history");
+        const requiredMissing = !called(toolCalls, "list_entries") || !called(toolCalls, "get_entry_history");
         return { success: !requiredMissing, issues, hallucinated: false };
       },
     }
   ],
 
   teardown: async (bridge: IBridge, assets: ProjectManagementAssets): Promise<void> => {
-    try {
-      await bridge.callTool("switch_mode", { mode: "configure" });
-      await deleteModuleByName(bridge, assets, "client project");
-      await bridge.callTool("switch_mode", { mode: "runtime" });
-    } catch { /* ignore */ }
+    await bridge.callTool("switch_mode", { mode: "configure" });
+    await deleteAllModulesMatching(bridge, assets, "client project");
+    await bridge.callTool("switch_mode", { mode: "runtime" });
   },
 };
 

@@ -1,5 +1,7 @@
 import type { Model } from "../types";
 
+const PROVIDERS = ["anthropic", "openai", "xai", "deepseek", "qwen", "moonshotai", "moonshot", "minimax"];
+
 export async function loadModels(apiKey: string): Promise<Model[]> {
   try {
     const res = await fetch("https://openrouter.ai/api/v1/models", {
@@ -7,18 +9,20 @@ export async function loadModels(apiKey: string): Promise<Model[]> {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json() as {
-      data: Array<{ id: string; pricing: { prompt: string; completion: string } }>;
+      data: Array<{ id: string; name: string; pricing: { prompt: string; completion: string } }>;
     };
-    const priceMap = new Map(
-      data.data.map((m) => [m.id, {
+
+    const dynamic: Model[] = data.data
+      .filter((m) => PROVIDERS.some((p) => m.id.startsWith(p + "/")) && !m.id.includes(":"))
+      .map((m) => ({
+        id: m.id,
+        name: m.name,
         price_in:  Number((parseFloat(m.pricing.prompt) * 1e6).toFixed(2)),
-        price_out:  Number((parseFloat(m.pricing.completion) * 1e6).toFixed(2)),
-      }])
-    );
-    return MODELS.map((model) => {
-      const live = priceMap.get(model.id);
-      return live ? { ...model, ...live } : model;
-    });
+        price_out: Number((parseFloat(m.pricing.completion) * 1e6).toFixed(2)),
+      }));
+
+    const local = MODELS.filter((m) => m.local);
+    return [...dynamic, ...local];
   } catch {
     return MODELS;
   }

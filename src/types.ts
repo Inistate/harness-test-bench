@@ -82,6 +82,7 @@ export interface Task<TAssets> {
   name: string;
   prompt: string | ((assets: TAssets) => string);
   evaluate: (toolCalls: ToolCall[], response: string) => EvaluationResult;
+  verify?: (bridge: IBridge, assets: TAssets) => Promise<EvaluationResult>;
   maxSteps?: number;
   setup?: (bridge: IBridge, assets: TAssets) => Promise<void>;
 }
