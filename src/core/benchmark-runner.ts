@@ -3,9 +3,27 @@ import type { Tool } from "@openrouter/agent";
 import * as fs from "fs";
 import * as path from "path";
 import { MCPBridge } from "../bridges/mcp-bridge";
-import type { BenchmarkConfig, IBridge, Model, ModelRunResult, RawMcpTool, Scenario, ScenarioResult, TaskResult, ToolCall } from "../types";
+import type { BenchmarkConfig, IBridge, Model, ModelRunResult, RawMcpTool, ResultFile, Scenario, ScenarioResult, TaskResult, ToolCall } from "../types";
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+function readPackageVersion(pkgPath: string): string | null {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { version?: string };
+    return pkg.version ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getVersions(mcpPath: string): { testbenchVersion: string; mcpVersion: string | null } {
+  const tbPkgPath = path.join(__dirname, "../../package.json");
+  const mcpPkgPath = path.join(path.dirname(mcpPath), "../package.json");
+  return {
+    testbenchVersion: readPackageVersion(tbPkgPath) ?? "unknown",
+    mcpVersion: readPackageVersion(mcpPkgPath),
+  };
+}
 
 const DELAY_BETWEEN_TASKS = 3000;
 const DELAY_BETWEEN_MODELS = 10000;
@@ -145,7 +163,7 @@ async function collectExecutedToolCalls(result: unknown): Promise<ToolCall[]> {
 async function runTask(
   openrouter: OpenRouter,
   model: Model,
-  task: { id: string; name: string; prompt: string | ((assets: Record<string, unknown>) => string); evaluate: (calls: ToolCall[], response: string) => { success: boolean; issues: string[]; hallucinated: boolean }; maxSteps?: number },
+  task: { id: string; name: string; prompt: string | ((assets: Record<string, unknown>) => string); evaluate: (calls: ToolCall[], response: string, assets?: Record<string, unknown>) => { success: boolean; issues: string[]; hallucinated: boolean }; maxSteps?: number },
   assets: Record<string, unknown>,
   tools: Tool[],
   system: string,
@@ -202,7 +220,7 @@ async function runTask(
     const cost = (inputTokens / 1e6) * model.price_in + (outputTokens / 1e6) * model.price_out;
 
     const toolCalls = await collectExecutedToolCalls(result);
-    const evaluation = task.evaluate(toolCalls, text);
+    const evaluation = task.evaluate(toolCalls, text, assets);
 
     if (logReasoning && reasoningChunks.length > 0) {
       const reasoning = reasoningChunks.join("").trim();
@@ -380,7 +398,7 @@ async function runTaskLocal(
   }
 
   const latency = Date.now() - start;
-  const evaluation = task.evaluate(collectedToolCalls, finalText);
+  const evaluation = task.evaluate(collectedToolCalls, finalText, assets);
 
   return {
     skipped: false,
@@ -632,7 +650,12 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<Record<stri
   const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
   const outPath = path.join(__dirname, "../../results", `${timestamp}.json`);
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, JSON.stringify(allResults, null, 2));
+  const { testbenchVersion, mcpVersion } = getVersions(mcpPath);
+  const resultFile: ResultFile = {
+    meta: { testbenchVersion, mcpVersion, runAt: new Date().toISOString() },
+    scenarios: allResults,
+  };
+  fs.writeFileSync(outPath, JSON.stringify(resultFile, null, 2));
   console.log(`\nResults saved → ${outPath}`);
 
   try {

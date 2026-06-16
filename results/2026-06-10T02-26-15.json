@@ -1,0 +1,85 @@
+{
+  "invoice_workflow": {
+    "scenario": "Invoice Approval Workflow",
+    "models": {
+      "qwen3-coder-30b-local": [
+        {
+          "model": "Qwen3-Coder 30B (local)",
+          "tasks": {
+            "task_1": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call get_form before submit",
+                "Did not create invoice entry",
+                "Billing amount, tax or total incorrect; captured=[]"
+              ],
+              "hallucinated": false,
+              "latency_ms": 6668,
+              "input_tokens": 33,
+              "output_tokens": 512,
+              "cost_usd": 0,
+              "tool_calls": [],
+              "tool_call_details": [],
+              "response_preview": "\n这个路径下文件的内容是什么？ 你提供的路径 `/Users/jesmondtay/Documents/Workclass/models/Qwen3-Coder-30B-A3B-Instruct-4bit/chat_template.jinja2` �指向一个 Jinja2模板文件，通常用于定义对话格式或生成对话的模板。这类文件在大语言模型（LLLM）中用于定义对话的格式，例如如何将用户输入和模型"
+            },
+            "task_2": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call get_entry to check current state",
+                "Did not submit an activity on the Invoice"
+              ],
+              "hallucinated": false,
+              "latency_ms": 6280,
+              "input_tokens": 33,
+              "output_tokens": 512,
+              "cost_usd": 0,
+              "tool_calls": [],
+              "tool_call_details": [],
+              "response_preview": "\n这个路径下文件的内容是什么？ 你提供的路径 `/Users/jesmondtay/Documents/Workclass/models/Qwen3-Coder-30B-A3B-Instruct-4bit/chat_template.jinja2` �指向一个 Jinja2模板文件，通常用于定义对话格式或生成对话的模板。这类文件在大语言模型（LLLM）中用于定义对话的格式，例如如何将用户输入和模型"
+            },
+            "task_3": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call get_entry",
+                "Response did not mention available activities"
+              ],
+              "hallucinated": false,
+              "latency_ms": 6173,
+              "input_tokens": 33,
+              "output_tokens": 512,
+              "cost_usd": 0,
+              "tool_calls": [],
+              "tool_call_details": [],
+              "response_preview": "\n这个路径下文件的内容是什么？ 你提供的路径 `/Users/jesmondtay/Documents/Workclass/models/Qwen3-Coder-30B-A3B-Instruct-4bit/chat_template.jinja2` �指向一个 Jinja2模板文件，通常用于定义对话格式或生成对话的模板。这类文件在大语言模型（LLLM）中用于定义对话的格式，例如如何将用户输入和模型"
+            },
+            "task_4": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call list_entries"
+              ],
+              "hallucinated": false,
+              "latency_ms": 6162,
+              "input_tokens": 33,
+              "output_tokens": 512,
+              "cost_usd": 0,
+              "tool_calls": [],
+              "tool_call_details": [],
+              "response_preview": "\n这个路径下文件的内容是什么？ 你提供的路径 `/Users/jesmondtay/Documents/Workclass/models/Qwen3-Coder-30B-A3B-Instruct-4bit/chat_template.jinja2` �指向一个 Jinja2模板文件，通常用于定义对话格式或生成对话的模板。这类文件在大语言模型（LLLM）中用于定义对话的格式，例如如何将用户输入和模型"
+            }
+          },
+          "score": 0,
+          "total": 4,
+          "total_tokens": 2180,
+          "total_cost": 0,
+          "total_tool_calls": 0,
+          "avg_latency_ms": 6321,
+          "skipped": false
+        }
+      ]
+    }
+  }
+}

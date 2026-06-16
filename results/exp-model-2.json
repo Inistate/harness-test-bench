@@ -1,0 +1,228 @@
+{
+  "smoke_all_tools_2": {
+    "scenario": "All-Tools Smoke Test 2",
+    "models": {
+      "anthropic/claude-opus-4.8": [
+        {
+          "model": "Claude Opus 4.8",
+          "tasks": {
+            "task_1_workspace_setup": {
+              "skipped": false,
+              "success": true,
+              "issues": [],
+              "hallucinated": false,
+              "latency_ms": 14660,
+              "input_tokens": 17144,
+              "output_tokens": 117,
+              "cost_usd": 0.088645,
+              "tool_calls": ["list_workspaces", "set_workspace"],
+              "tool_call_details": [
+                {
+                  "name": "list_workspaces",
+                  "arguments": {},
+                  "result": [{"id": 1138, "name": "Inistate"}, {"id": 2234, "name": "Test"}]
+                },
+                {
+                  "name": "set_workspace",
+                  "arguments": {"workspaceId": "2234"},
+                  "result": {"id": 2234, "api": "1.0", "version": "WoXsQwXJJHgJ", "builder": false, "lastUpdatedOn": "2026-06-11T14:47:01.126+08:00", "type": null, "inLobby": false, "name": "Test"}
+                }
+              ],
+              "response_preview": ""
+            },
+            "task_2_module_design": {
+              "skipped": false,
+              "success": true,
+              "issues": [],
+              "hallucinated": false,
+              "latency_ms": 36538,
+              "input_tokens": 38221,
+              "output_tokens": 2392,
+              "cost_usd": 0.250905,
+              "tool_calls": ["design_workflow", "design_workflow", "validate_design", "validate_design"],
+              "tool_call_details": [
+                {
+                  "name": "design_workflow",
+                  "arguments": {"description": "A module for tracking client projects. Each project has a project name, client name, status (lifecycle), start date, deadline, an owner (assigned user), and a budget amount. Track projects from planning through active work to completion.", "industry": "Professional Services"},
+                  "result": {"result": "MCP error -32602: Input validation error: Invalid arguments for tool design_workflow: [{\"received\": \"Professional Services\", \"code\": \"invalid_enum_value\"}]"}
+                },
+                {
+                  "name": "design_workflow",
+                  "arguments": {"description": "A module for tracking client projects. Each project has a project name, client name, status (lifecycle), start date, deadline, an owner (assigned user), and a budget amount. Track projects from planning through active work to completion.", "industry": "general"},
+                  "result": {"template": {"name": "", "icon": "", "description": "", "published": true}}
+                },
+                {
+                  "name": "validate_design",
+                  "arguments": {"mode": "create", "schema": {"name": "Client Projects", "icon": "📋", "description": "Track client projects from planning through completion, including ownership, timeline, and budget.", "published": true}},
+                  "result": {"valid": false, "errors": ["State 'On Hold' has invalid color '#B5852A'. Valid colors: #5A6070, #2968A8, #2A7B50, #A07828, #C0392B, #6B4D91, #1E6B45, #8B2D2D."], "warnings": []}
+                },
+                {
+                  "name": "validate_design",
+                  "arguments": {"mode": "create", "schema": {"name": "Client Projects", "icon": "📋", "description": "Track client projects from planning through completion, including ownership, timeline, and budget.", "published": true}},
+                  "result": {"valid": true, "errors": [], "warnings": [], "summary": {"field_count": 6, "state_count": 5, "activity_count": 5, "flow_count": 7, "initial_state": "Planning", "terminal_states": ["Completed", "Cancelled"]}}
+                }
+              ],
+              "response_preview": ""
+            },
+            "task_3_module_creation": {
+              "skipped": false,
+              "success": true,
+              "issues": [],
+              "hallucinated": false,
+              "latency_ms": 76594,
+              "input_tokens": 124467,
+              "output_tokens": 4586,
+              "cost_usd": 0.736985,
+              "tool_calls": ["design_workflow", "validate_design", "validate_design", "create_module", "list_modules", "create_module", "get_module_canvas", "create_module", "validate_design", "update_module"],
+              "tool_call_details": [
+                {
+                  "name": "design_workflow",
+                  "arguments": {"description": "Client Projects module to track projects for clients. Includes project name, client, status lifecycle, assigned team member, dates, and basic project details."},
+                  "result": {"template": {"name": "", "icon": "", "description": "", "published": true}}
+                },
+                {
+                  "name": "validate_design",
+                  "arguments": {"mode": "create", "schema": {"name": "Client Projects", "icon": "📁", "description": "Track client projects through their lifecycle.", "published": true}},
+                  "result": {"valid": false, "errors": ["Field 'Description' has invalid type 'Textarea'. Valid types: Text, YesNo, Integer, Number, Currency, Date, DateTime, DateRange, Selection, Tag, User, UserList, File, Link, MultiText"], "warnings": []}
+                },
+                {
+                  "name": "validate_design",
+                  "arguments": {"mode": "create", "schema": {"name": "Client Projects", "icon": "📁", "description": "Track client projects through their lifecycle.", "published": true}},
+                  "result": {"valid": true, "errors": [], "warnings": [], "summary": {"field_count": 6, "state_count": 4, "activity_count": 4, "flow_count": 4, "initial_state": "Planning", "terminal_states": ["Completed"]}}
+                },
+                {
+                  "name": "create_module",
+                  "arguments": {"name": "Client Projects", "icon": "📁", "description": "Track client projects through their lifecycle."},
+                  "result": {"error": "Validation failed"}
+                },
+                {
+                  "name": "list_modules",
+                  "arguments": {},
+                  "result": [{"name": "Test", "emoji": null}, {"name": "Link Test", "emoji": "🔗"}, {"name": "Product", "emoji": "📦"}, {"name": "Client", "emoji": "🏢"}, {"name": "Invoice", "emoji": "🧾"}, {"name": "Payment", "emoji": "💳"}]
+                },
+                {
+                  "name": "create_module",
+                  "arguments": {"name": "Client Projects", "icon": "📁", "description": "Track client projects through their lifecycle.", "information": [{"name": "Project Name", "type": "Text"}, {"name": "Client", "type": "Text"}, {"name": "Assigned team member", "type": "User", "connection": "Users"}, {"name": "Start Date", "type": "Date"}, {"name": "Due Date", "type": "Date"}]},
+                  "result": {"error": "Validation failed"}
+                },
+                {
+                  "name": "get_module_canvas",
+                  "arguments": {"module": "Invoice"},
+                  "result": {"id": 18418, "name": "Invoice", "icon": "🧾", "description": "Invoice lifecycle from creation to payment or escalation."}
+                },
+                {
+                  "name": "create_module",
+                  "arguments": {"name": "Client Projects", "icon": "📁", "description": "Track client projects through their lifecycle.", "information": [{"name": "Project Name", "type": "Text"}, {"name": "Client", "type": "Text"}, {"name": "Assigned team member", "type": "Text"}, {"name": "Start Date", "type": "Date"}, {"name": "Due Date", "type": "Date"}]},
+                  "result": {"id": 18516, "name": "Client Projects", "icon": "📁", "description": "Track client projects through their lifecycle."}
+                },
+                {
+                  "name": "validate_design",
+                  "arguments": {"mode": "update", "schema": {"id": 18516, "information": [{"id": "LyBBbhyq", "name": "Project Name", "type": "Text"}, {"id": "vsUNLmAn", "name": "Client", "type": "Text"}, {"id": "eFGEvGkk", "name": "Owner", "type": "Text"}, {"id": "TuBPWryF", "name": "Start Date", "type": "Date"}, {"id": "CcctyuEo", "name": "Due Date", "type": "Date"}]}},
+                  "result": {"valid": true, "errors": [], "warnings": [], "summary": {"field_count": 8, "module_type": "record_list"}}
+                },
+                {
+                  "name": "update_module",
+                  "arguments": {"id": "18516", "information": [{"id": "LyBBbhyq", "name": "Project Name", "type": "Text"}, {"id": "vsUNLmAn", "name": "Client", "type": "Text"}, {"id": "eFGEvGkk", "name": "Owner", "type": "Text"}, {"id": "TuBPWryF", "name": "Start Date", "type": "Date"}, {"id": "CcctyuEo", "name": "Due Date", "type": "Date"}]},
+                  "result": {"id": 18516, "name": "Client Projects", "icon": "📁", "description": "Track client projects through their lifecycle."}
+                }
+              ],
+              "response_preview": ""
+            },
+            "task_4_entry_creation": {
+              "skipped": false,
+              "success": false,
+              "issues": ["Did not call submit_activity or submit_activities"],
+              "hallucinated": false,
+              "latency_ms": 22928,
+              "input_tokens": 36311,
+              "output_tokens": 364,
+              "cost_usd": 0.190655,
+              "tool_calls": ["get_form", "get_module_schema", "switch_mode", "get_module_schema"],
+              "tool_call_details": [
+                {
+                  "name": "get_form",
+                  "arguments": {"module": "Client Projects", "activity": "create"},
+                  "result": {"module": "Client Projects", "activity": "create", "entryId": null, "documentId": null, "form": [{"Project Name": {"type": "Text"}}, {"Client": {"type": "Text"}}, {"Owner": {"type": "Text"}}]}
+                },
+                {
+                  "name": "get_module_schema",
+                  "arguments": {"module": "Client Projects", "tier": "extended"},
+                  "result": {"result": "MCP error -32602: Tool get_module_schema disabled"}
+                },
+                {
+                  "name": "switch_mode",
+                  "arguments": {"mode": "configure"},
+                  "result": {"mode": "configure", "message": "Switched to configure mode"}
+                },
+                {
+                  "name": "get_module_schema",
+                  "arguments": {"module": "Client Projects", "tier": "extended"},
+                  "result": {"name": "Client Projects", "icon": "📁", "description": "Track client projects through their lifecycle.", "information": [{"name": "Project Name", "type": "Text"}, {"name": "Client", "type": "Text"}]}
+                }
+              ],
+              "response_preview": ""
+            },
+            "task_5_entry_retrieval": {
+              "skipped": false,
+              "success": false,
+              "issues": ["Did not call get_entry", "Did not call get_entry_history"],
+              "hallucinated": false,
+              "latency_ms": 34097,
+              "input_tokens": 64309,
+              "output_tokens": 713,
+              "cost_usd": 0.339370,
+              "tool_calls": ["list_modules", "get_module_schema", "switch_mode", "get_module_schema", "list_entries", "list_entries", "list_entries"],
+              "tool_call_details": [
+                {
+                  "name": "list_modules",
+                  "arguments": {},
+                  "result": [{"name": "Test", "emoji": null}, {"name": "Link Test", "emoji": "🔗"}, {"name": "Product", "emoji": "📦"}, {"name": "Client", "emoji": "🏢"}, {"name": "Invoice", "emoji": "🧾"}, {"name": "Payment", "emoji": "💳"}]
+                },
+                {
+                  "name": "get_module_schema",
+                  "arguments": {"module": "Client Projects", "tier": "extended"},
+                  "result": {"result": "MCP error -32602: Tool get_module_schema disabled"}
+                },
+                {
+                  "name": "switch_mode",
+                  "arguments": {"mode": "configure"},
+                  "result": {"mode": "configure", "message": "Switched to configure mode"}
+                },
+                {
+                  "name": "get_module_schema",
+                  "arguments": {"module": "Client Projects", "tier": "extended"},
+                  "result": {"name": "Client Projects", "icon": "📁", "description": "Track client projects through their lifecycle.", "information": [{"name": "Project Name", "type": "Text"}, {"name": "Client", "type": "Text"}]}
+                },
+                {
+                  "name": "list_entries",
+                  "arguments": {"module": "Client Projects", "filters": {"State": {"not": "Completed"}}, "sortBy": "Due Date", "sortDirection": "asc"},
+                  "result": {"list": [], "total": 0}
+                },
+                {
+                  "name": "list_entries",
+                  "arguments": {"module": "Client Projects", "sortBy": "Due Date", "sortDirection": "asc"},
+                  "result": {"list": [], "total": 0}
+                },
+                {
+                  "name": "list_entries",
+                  "arguments": {"module": "Client Projects"},
+                  "result": {"list": [], "total": 0}
+                }
+              ],
+              "response_preview": ""
+            }
+          },
+          "score": 3,
+          "total": 5,
+          "total_tokens": 288624,
+          "total_input_tokens": 280452,
+          "total_output_tokens": 8172,
+          "total_cost": 1.60656,
+          "total_tool_calls": 27,
+          "avg_latency_ms": 36963,
+          "skipped": false
+        }
+      ]
+    }
+  }
+}

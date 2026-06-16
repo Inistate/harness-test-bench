@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import type { ModelRunResult, ScenarioResult, TaskResult } from "../types";
+import type { ModelRunResult, ResultFile, ScenarioResult, TaskResult } from "../types";
 
 // ─── ANSI ──────────────────────────────────────────────────────────────────────
 const c = {
@@ -61,9 +61,17 @@ function divider(width = 65, char = "─"): void {
   console.log(c.dim + char.repeat(width) + c.reset);
 }
 
-function loadResults(filePath?: string): Record<string, ScenarioResult> {
+function parseResultFile(raw: string): { meta?: ResultFile["meta"]; scenarios: Record<string, ScenarioResult> } {
+  const parsed = JSON.parse(raw) as ResultFile | Record<string, ScenarioResult>;
+  if ("scenarios" in parsed && "meta" in parsed) {
+    return parsed as ResultFile;
+  }
+  return { scenarios: parsed as Record<string, ScenarioResult> };
+}
+
+function loadResults(filePath?: string): { meta?: ResultFile["meta"]; scenarios: Record<string, ScenarioResult> } {
   if (filePath) {
-    return JSON.parse(fs.readFileSync(filePath, "utf8")) as Record<string, ScenarioResult>;
+    return parseResultFile(fs.readFileSync(filePath, "utf8"));
   }
   const dir = path.join(__dirname, "../../results");
   if (!fs.existsSync(dir)) {
@@ -75,7 +83,7 @@ function loadResults(filePath?: string): Record<string, ScenarioResult> {
     console.error("No result files found. Run testbench first.");
     process.exit(1);
   }
-  return JSON.parse(fs.readFileSync(path.join(dir, files[0]), "utf8")) as Record<string, ScenarioResult>;
+  return parseResultFile(fs.readFileSync(path.join(dir, files[0]), "utf8"));
 }
 
 function sortedModelIds(scenarioData: ScenarioResult): string[] {
@@ -421,11 +429,19 @@ function drawHallucinationSummary(scenarioData: ScenarioResult): void {
 }
 
 export function visualise(filePath?: string): void {
-  const data = loadResults(filePath);
+  const { meta, scenarios } = loadResults(filePath);
   console.log("\n");
   header("Inistate TestBench — Results");
 
-  for (const scenData of Object.values(data)) {
+  if (meta) {
+    console.log(
+      `${c.dim}testbench@${meta.testbenchVersion}` +
+      (meta.mcpVersion ? `  mcp@${meta.mcpVersion}` : "") +
+      `  ${new Date(meta.runAt).toLocaleString()}${c.reset}\n`
+    );
+  }
+
+  for (const scenData of Object.values(scenarios)) {
     console.log(`\n${c.bold}${c.magenta}▶ ${scenData.scenario}${c.reset}`);
     drawTaskGrid(scenData);
     drawScoreChart(scenData);

@@ -1,0 +1,24 @@
+{
+  "invoice_workflow": {
+    "scenario": "Invoice Approval Workflow",
+    "models": {
+      "deepseek/deepseek-v4-pro": [
+        {
+          "model": "DeepSeek V4 Pro",
+          "tasks": {
+            "task_1": {
+              "skipped": true,
+              "reason": "Response validation failed"
+            }
+          },
+          "score": 0,
+          "total": 4,
+          "total_tokens": 0,
+          "total_cost": 0,
+          "skipped": true,
+          "skip_reason": "Response validation failed"
+        }
+      ]
+    }
+  }
+}

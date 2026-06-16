@@ -12,6 +12,14 @@ interface InvoiceAssets {
   clientId: string | number;
 }
 
+// ─── Error detection ──────────────────────────────────────────────────────────
+function hasError(result: unknown): boolean {
+  const r = result as Record<string, unknown>;
+  if (r?.error) return true;
+  if (typeof r?.result === "string" && r.result.toLowerCase().includes("error")) return true;
+  return false;
+}
+
 // ─── Result extraction helpers ────────────────────────────────────────────────
 function firstDefined<T>(...values: (T | null | undefined)[]): T | undefined {
   return values.find((v): v is T => v !== undefined && v !== null);
@@ -244,20 +252,82 @@ Use the tools to complete the given task. Be concise and efficient.`,
           t.arguments?.["module"] === "Invoice" &&
           (!t.arguments?.["activity"] || t.arguments?.["activity"] === "create");
         const invoiceCreateCalls = toolCalls.filter(isInvoiceCreate);
-        const created        = toolCalls.some((t) => isInvoiceCreate(t) && !(t.result as Record<string, unknown>)?.error);
+        const created        = toolCalls.some((t) => isInvoiceCreate(t) && !hasError(t.result));
         const calledGetForm  = toolCalls.some((t) => t.name === "get_form");
-        const correctAmount  = invoiceCreateCalls.some((t) => {
-          const items = (t.arguments?.["items"] as Array<{ input?: Record<string, unknown> }>) ?? [{ input: (t.arguments?.["input"] as Record<string, unknown>) ?? {} }];
-          return items.some((item) => {
-            const input = item?.input ?? {};
-            return Number(input["Billing Amount"]) === 15000 && Number(input["Tax"]) === 1200 && Number(input["Total Amount"]) === 16200;
-          });
+        const correctAmount = invoiceCreateCalls.some((t) => {
+          const raw = JSON.stringify(t.arguments);
+          return raw.includes("15000") && raw.includes("1200") && raw.includes("16200");
         });
+        const correctClient = invoiceCreateCalls.some((t) =>
+          JSON.stringify(t.arguments).toLowerCase().includes("apex solutions")
+        );
         const issues: string[] = [];
-        if (!calledGetForm)  issues.push("Did not call get_form before submit");
-        if (!created)        issues.push("Did not create invoice entry");
-        if (!correctAmount)  issues.push(`Billing amount, tax or total incorrect; captured=${JSON.stringify(invoiceCreateCalls.map((t) => t.arguments?.["input"] ?? t.arguments?.["items"])).slice(0, 500)}`);
-        return { success: created && correctAmount, issues, hallucinated: created && !correctAmount };
+        if (!calledGetForm)   issues.push("Did not call get_form before submit");
+        if (!created)         issues.push("Did not create invoice entry");
+        if (!correctAmount)   issues.push(`Billing amount, tax or total incorrect; captured=${JSON.stringify(invoiceCreateCalls.map((t) => t.arguments?.["input"] ?? t.arguments?.["items"])).slice(0, 500)}`);
+        if (!correctClient)   issues.push("Client 'Apex Solutions' not found in submitted arguments");
+        return { success: created && correctAmount && correctClient, issues, hallucinated: created && (!correctAmount || !correctClient) };
+      },
+      verify: async (bridge: IBridge) => {
+        const issues: string[] = [];
+        const results = await bridge.callTool("list_entries", { module: "Invoice" }) as Record<string, unknown>;
+        if (hasError(results)) {
+          issues.push("list_entries failed when verifying the final module state");
+          return { success: false, issues, hallucinated: false };
+        }
+        const entries = (
+          Array.isArray(results) ? results :
+          Array.isArray(results?.list) ? results.list :
+          Array.isArray(results?.entries) ? results.entries :
+          []
+        ) as Array<Record<string, unknown>>;
+
+        const expected = [
+          { client: "Apex Solutions", price: 15000, tax: 1200, total: 16200, terms: "Net 30" },
+        ];
+
+        for (const exp of expected) {
+          const raw = entries.find((e) => JSON.stringify(e).toLowerCase().includes(exp.client.toLowerCase()));
+
+          if (!raw) {
+            issues.push(`Missing entry: "${exp.client}"`);
+            continue;
+          }
+          
+          if (!JSON.stringify(raw).toLowerCase().includes(exp.client.toLowerCase()))
+            issues.push(`"${exp.client}": Client "${exp.client}" not found in entry`);
+          if (JSON.stringify(raw).toLowerCase().includes(String(exp.price))){
+            const data = (raw.data as Record<string, unknown>) ?? {};
+            const price = data?.["Billing Amount"] ?? raw.billing_amount ?? raw.price ?? raw.amount;
+            if (price !== exp.price) {
+              issues.push(`"${exp.client}": Billing Amount ${exp.price} not found in entry`);
+            }
+          }else{
+              issues.push(`"${exp.client}": Billing Amount ${exp.price} not found in entry`);
+          }
+          if (JSON.stringify(raw).toLowerCase().includes(String(exp.tax))){
+            const data = (raw.data as Record<string, unknown>) ?? {};
+            const tax = data?.["Tax"] ?? raw["Tax"] ?? raw.tax;
+            if (tax !== exp.tax) {
+              issues.push(`"${exp.client}": Tax ${exp.tax} not found in entry`);
+            }
+          }else{
+              issues.push(`"${exp.client}": Tax ${exp.tax} not found in entry`);
+          }
+          if (JSON.stringify(raw).toLowerCase().includes(String(exp.total))){
+            const data = (raw.data as Record<string, unknown>) ?? {};
+            const total = data?.["Total Amount"] ?? raw.total ?? raw.amount;
+            if (total !== exp.total) {
+              issues.push(`"${exp.client}": Total Amount ${exp.total} not found in entry`);
+            }
+          }else{
+              issues.push(`"${exp.client}": Total Amount ${exp.total} not found in entry`);
+          }
+          if (!JSON.stringify(raw).toLowerCase().includes(exp.terms.toLowerCase()))
+            issues.push(`"${exp.client}": Payment Terms "${exp.terms}" not found in entry`);
+        }
+
+        return { success: issues.length === 0, issues, hallucinated: false };
       },
     },
     {
@@ -269,13 +339,17 @@ Use the tools to complete the given task. Be concise and efficient.`,
         const checkedEntry = toolCalls.some((t) => t.name === "get_entry");
         const submitted    = toolCalls.some(
           (t) => (t.name === "submit_activity" || t.name === "submit_activities") &&
-            t.arguments?.["module"] === "Invoice" &&
-            !(t.result as Record<string, unknown>)?.error
+            t.arguments?.["module"] === "Invoice"
+        );
+        const usedCorrectActivity = toolCalls.some(
+          (t) => (t.name === "submit_activity" || t.name === "submit_activities") &&
+            t.arguments?.["activity"] === "Generate Invoice"
         );
         const issues: string[] = [];
-        if (!checkedEntry) issues.push("Did not call get_entry to check current state");
-        if (!submitted)    issues.push("Did not submit an activity on the Invoice");
-        return { success: submitted, issues, hallucinated: false };
+        if (!checkedEntry)        issues.push("Did not call get_entry to check current state");
+        if (!submitted)           issues.push("Did not submit an activity on the Invoice");
+        if (submitted && !usedCorrectActivity) issues.push("Did not use 'Generate Invoice' activity (Draft → Pending Approval)");
+        return { success: submitted && usedCorrectActivity, issues, hallucinated: false };
       },
     },
     {
@@ -285,7 +359,7 @@ Use the tools to complete the given task. Be concise and efficient.`,
         `Check what actions are currently available for invoice entryId ${assets.task3EntryId}.`,
       evaluate: (toolCalls, response) => {
         const calledGetEntry             = toolCalls.some((t) => t.name === "get_entry");
-        const responseMentionsActivities = ["available", "activit", "transition", "action"].some((w) => response.toLowerCase().includes(w));
+        const responseMentionsActivities = ["available", "activity", "transition", "action"].some((w) => response.toLowerCase().includes(w));
         const issues: string[] = [];
         if (!calledGetEntry)             issues.push("Did not call get_entry");
         if (!responseMentionsActivities) issues.push("Response did not mention available activities");
@@ -295,17 +369,22 @@ Use the tools to complete the given task. Be concise and efficient.`,
     {
       id: "task_4",
       name: "Check Overdue Invoices",
-      prompt: (assets) =>
-        `Check if there are any overdue invoices for Pinnacle Ventures Sdn Bhd.`,
+      prompt: () =>
+        `Check if there are any overdue invoice
+      s for Pinnacle Ventures Sdn Bhd.`,
       evaluate: (toolCalls, response) => {
         const calledListEntries  = toolCalls.some((t) => t.name === "list_entries");
         const filteredByClient   = toolCalls.some((t) => t.name === "list_entries" && JSON.stringify(t.arguments).toLowerCase().includes("pinnacle"));
-        const hallucinated       = !calledListEntries && ["overdue", "outstanding"].some((w) => response.toLowerCase().includes(w));
+        const text = response.toLowerCase();
+        const mentionsOverdue = text.includes("overdue") || text.includes("past due") || text.includes("late");
+        const negated = /\b(no|none|not|zero|0|isn't|aren't|doesn't|don't|didn't)\b[^.]{0,30}overdue/.test(text)
+             || /overdue[^.]{0,30}\b(none|not found|0)\b/.test(text);
+        const correctlyIdentified = (mentionsOverdue && !negated) || (!mentionsOverdue && negated);
         const issues: string[] = [];
         if (!calledListEntries)                    issues.push("Did not call list_entries");
         if (calledListEntries && !filteredByClient) issues.push("Did not filter by Pinnacle Ventures");
-        if (hallucinated)                          issues.push("Hallucinated invoice data without checking database");
-        return { success: calledListEntries && filteredByClient, issues, hallucinated };
+        if (!correctlyIdentified)                  issues.push("Did not correctly identify the presence of overdue invoices for Pinnacle Ventures based on the response");
+        return { success: calledListEntries && filteredByClient, issues, hallucinated: !correctlyIdentified };
       },
     },
   ],
@@ -321,8 +400,7 @@ Use the tools to complete the given task. Be concise and efficient.`,
     for (const { module, entryId } of entriesToDelete) {
       try {
         await _bridge.callTool("submit_activity", {
-          module, activity: "delete", workspaceId: assets.workspaceId, confirmed: true,
-          items: [{ entryId }],
+          module, activity: "delete", entryId, workspaceId: assets.workspaceId, confirmed: true,
           ai: { reasoning: "TestBench teardown", model: "testbench", confidence: 1.0 },
         });
       } catch { /* ignore */ }

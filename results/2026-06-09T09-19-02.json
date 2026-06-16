@@ -1,0 +1,26 @@
+{
+  "invoice_workflow": {
+    "scenario": "Invoice Approval Workflow",
+    "models": {
+      "qwen3-coder-30b-local": [
+        {
+          "model": "Qwen3-Coder 30B (local)",
+          "tasks": {
+            "task_1": {
+              "skipped": true,
+              "reason": "Local model 404: 401 Client Error. (Request ID: Root=1-6a27da86-5fefbc3d0276c6e2617a0d87;f8cf64d8-79b0-489d-93cf-8b7b1c8554c7)\n\nRepository Not Found for url: https://huggingface.co/api/models/qwen3-coder-30b-local/rev"
+            }
+          },
+          "score": 0,
+          "total": 4,
+          "total_tokens": 0,
+          "total_cost": 0,
+          "total_tool_calls": 0,
+          "avg_latency_ms": 0,
+          "skipped": true,
+          "skip_reason": "Local model 404: 401 Client Error. (Request ID: Root=1-6a27da86-5fefbc3d0276c6e2617a0d87;f8cf64d8-79b0-489d-93cf-8b7b1c8554c7)\n\nRepository Not Found for url: https://huggingface.co/api/models/qwen3-coder-30b-local/rev"
+        }
+      ]
+    }
+  }
+}

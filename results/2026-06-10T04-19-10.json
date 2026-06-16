@@ -1,0 +1,26 @@
+{
+  "smoke_all_tools_2": {
+    "scenario": "All-Tools Smoke Test 2",
+    "models": {
+      "minimax/minimax-m2.5": [
+        {
+          "model": "MiniMax M2.5",
+          "tasks": {
+            "task_1_workspace_setup": {
+              "skipped": true,
+              "reason": "getText timed out after 60000ms"
+            }
+          },
+          "score": 0,
+          "total": 5,
+          "total_tokens": 0,
+          "total_cost": 0,
+          "total_tool_calls": 0,
+          "avg_latency_ms": 0,
+          "skipped": true,
+          "skip_reason": "getText timed out after 60000ms"
+        }
+      ]
+    }
+  }
+}

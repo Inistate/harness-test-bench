@@ -1,0 +1,1364 @@
+{
+  "invoice_workflow": {
+    "scenario": "Invoice Approval Workflow",
+    "models": {
+      "deepseek/deepseek-r1": [
+        {
+          "model": "DeepSeek R1",
+          "tasks": {
+            "task_1": {
+              "skipped": false,
+              "success": true,
+              "issues": [],
+              "hallucinated": false,
+              "latency_ms": 495451,
+              "input_tokens": 8062,
+              "output_tokens": 229,
+              "cost_usd": 0.00493561,
+              "tool_calls": [
+                "set_workspace",
+                "list_modules",
+                "get_form",
+                "submit_activity",
+                "submit_activity"
+              ],
+              "tool_call_details": [
+                {
+                  "name": "set_workspace",
+                  "arguments": {
+                    "workspaceId": "2234"
+                  },
+                  "result": {
+                    "id": 2234,
+                    "api": "1.0",
+                    "version": "umKTHaacEeeu",
+                    "builder": false,
+                    "lastUpdatedOn": "2026-05-26T09:52:13.863+08:00",
+                    "inLobby": false,
+                    "name": "Test",
+                    "vectors": [
+                      {
+                        "id": "18403",
+                        "emoji": null,
+                        "name": "Test",
+                        "color": null,
+                        "menus": [],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18403",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18408",
+                        "emoji": "🔗",
+                        "name": "Link Test",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18408",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18411",
+                        "emoji": "📦",
+                        "name": "Product",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18411",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18417",
+                        "emoji": "🏢",
+                        "name": "Client",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18417",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18418",
+                        "emoji": "🧾",
+                        "name": "Invoice",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18418",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18419",
+                        "emoji": "💳",
+                        "name": "Payment",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18419",
+                        "published": true,
+                        "background": null
+                      }
+                    ],
+                    "source": null,
+                    "menus": [
+                      {
+                        "id": "18403",
+                        "emoji": null,
+                        "name": "Test",
+                        "color": null,
+                        "menus": [],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18403",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18408",
+                        "emoji": "🔗",
+                        "name": "Link Test",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18408",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18411",
+                        "emoji": "📦",
+                        "name": "Product",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18411",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18417",
+                        "emoji": "🏢",
+                        "name": "Client",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18417",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18418",
+                        "emoji": "🧾",
+                        "name": "Invoice",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18418",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18419",
+                        "emoji": "💳",
+                        "name": "Payment",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18419",
+                        "published": true,
+                        "background": null
+                      }
+                    ],
+                    "widgets": null,
+                    "dashboard": null,
+                    "shortcuts": null,
+                    "background": null,
+                    "backgroundColor": null,
+                    "color": null,
+                    "icon": null,
+                    "theme": null,
+                    "logo": null,
+                    "roles": [
+                      "Workspace Admin"
+                    ],
+                    "users": [
+                      {
+                        "username": "dylon.wongchungyee@inistate.com",
+                        "disable": false,
+                        "displayName": "Dylon Wong",
+                        "profilePictureUrl": "https://ftsp.s3-ap-southeast-1.amazonaws.com/profiles/udXNuHdt-pp.jpg",
+                        "profileId": "ed0cd539-6698-4675-8c1d-9213f89c95ae"
+                      },
+                      {
+                        "username": "jesmondsxtay@gmail.com",
+                        "disable": false,
+                        "displayName": "Jesmond Tay Soon Xiang",
+                        "profilePictureUrl": null,
+                        "profileId": "f600005f-f0e8-4d65-91dd-c95fd29c6eb2"
+                      }
+                    ],
+                    "states": [
+                      {
+                        "id": "9d4e92c1-ba81-46d8-9ffd-5fb3b64f0cfa",
+                        "name": "Active",
+                        "color": "#1E6B45",
+                        "initial": true,
+                        "module": "18408"
+                      },
+                      {
+                        "id": "cb1d1ff0-b37b-4e2e-9675-8ab62ece9951",
+                        "name": "Draft",
+                        "color": "#5A6070",
+                        "initial": true,
+                        "module": "18411"
+                      },
+                      {
+                        "id": "c3660359-486e-40a2-8d0a-13d3e1b76bcb",
+                        "name": "Active",
+                        "color": "#1E6B45",
+                        "module": "18411"
+                      },
+                      {
+                        "id": "22c34775-bd0b-4b5d-a53f-a50fb0c16d62",
+                        "name": "Archived",
+                        "color": "#C0392B",
+                        "module": "18411"
+                      },
+                      {
+                        "id": "8933138c-e31f-4a27-a84f-cc6a8fedb4f4",
+                        "name": "Active",
+                        "color": "#1E6B45",
+                        "initial": true,
+                        "module": "18417"
+                      },
+                      {
+                        "id": "207c1305-d490-4730-bd60-8c4b9f4d8f29",
+                        "name": "Inactive",
+                        "color": "#5A6070",
+                        "module": "18417"
+                      },
+                      {
+                        "id": "a9fd2691-da62-4c8e-9b4d-66611ccb4a90",
+                        "name": "Draft",
+                        "color": "#5A6070",
+                        "initial": true,
+                        "module": "18418"
+                      },
+                      {
+                        "id": "9694cfa9-c9c9-4e15-bef5-73cc93d41c23",
+                        "name": "Pending Approval",
+                        "color": "#A07828",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "09b24418-d123-40ea-928e-ab013f87c744",
+                        "name": "Sent",
+                        "color": "#2968A8",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "2ff59ce7-fcae-4eed-a7cd-bfdc67a72515",
+                        "name": "Paid",
+                        "color": "#1E6B45",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "04ecd06f-dad7-4d34-93ee-4e8a7ef1a9dc",
+                        "name": "Overdue",
+                        "color": "#C0392B",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "925d4c99-a38d-4d33-8166-a5488a44b24f",
+                        "name": "Escalated",
+                        "color": "#8B2D2D",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "eb5fff45-0123-41ac-936f-a9ff2fc8d14e",
+                        "name": "Legal Review",
+                        "color": "#6B4D91",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "751e6000-c925-4b68-9cfa-fe27e49f6bba",
+                        "name": "Void",
+                        "color": "#5A6070",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "77cc5634-244e-4ae5-ad36-c464d308cc5c",
+                        "name": "Pending Reconciliation",
+                        "color": "#A07828",
+                        "initial": true,
+                        "module": "18419"
+                      },
+                      {
+                        "id": "14128191-4c12-4e8f-befc-491ef5df88cc",
+                        "name": "Matched",
+                        "color": "#1E6B45",
+                        "module": "18419"
+                      },
+                      {
+                        "id": "4555bf96-7aa7-4673-aacf-a32dc07e48d2",
+                        "name": "Under Review",
+                        "color": "#C0392B",
+                        "module": "18419"
+                      },
+                      {
+                        "id": "516138a6-4466-4830-8e81-1806d13313c4",
+                        "name": "Rejected",
+                        "color": "#8B2D2D",
+                        "module": "18419"
+                      },
+                      {
+                        "id": "9a8fb171-98c2-4893-8328-21997f133b78",
+                        "name": "Unmatched",
+                        "color": "#C0392B",
+                        "module": "18419"
+                      },
+                      {
+                        "id": "a88af366-5eea-472b-ad8d-8cdc557a34c2",
+                        "name": "Overpayment",
+                        "color": "#6B4D91",
+                        "module": "18419"
+                      },
+                      {
+                        "id": "44b8fe18-4cfe-4963-a2c9-78605b643cef",
+                        "name": "Refunded",
+                        "color": "#2A7B50",
+                        "module": "18419"
+                      }
+                    ],
+                    "contextModuleId": "",
+                    "profile": {
+                      "displayName": "Jesmond Tay Soon Xiang",
+                      "firstName": null,
+                      "lastName": null,
+                      "email": "jesmondsxtay@gmail.com",
+                      "phoneNumber": null,
+                      "profilePictureUrl": null,
+                      "apiKey": "f600005f-f0e8-4d65-91dd-c95fd29c6eb2:ce79726ff67b461482ba3f28ee8c9f8f"
+                    },
+                    "hasContext": false,
+                    "scan": {
+                      "m": null,
+                      "g": null
+                    },
+                    "country": null
+                  }
+                },
+                {
+                  "name": "list_modules",
+                  "arguments": {
+                    "workspaceId": "2234"
+                  },
+                  "result": [
+                    {
+                      "name": "Test",
+                      "emoji": null
+                    },
+                    {
+                      "name": "Link Test",
+                      "emoji": "🔗"
+                    },
+                    {
+                      "name": "Product",
+                      "emoji": "📦"
+                    },
+                    {
+                      "name": "Client",
+                      "emoji": "🏢"
+                    },
+                    {
+                      "name": "Invoice",
+                      "emoji": "🧾"
+                    },
+                    {
+                      "name": "Payment",
+                      "emoji": "💳"
+                    }
+                  ]
+                },
+                {
+                  "name": "get_form",
+                  "arguments": {
+                    "module": "Invoice",
+                    "activity": "create"
+                  },
+                  "result": {
+                    "module": "Invoice",
+                    "activity": "create",
+                    "entryId": null,
+                    "documentId": null,
+                    "form": [
+                      {
+                        "Invoice Number": {
+                          "type": "Text"
+                        }
+                      },
+                      {
+                        "Client": {
+                          "type": "Text"
+                        }
+                      },
+                      {
+                        "Description": {
+                          "type": "MultiText"
+                        }
+                      },
+                      {
+                        "Billing Amount": {
+                          "type": "Currency"
+                        }
+                      },
+                      {
+                        "Tax": {
+                          "type": "Currency"
+                        }
+                      },
+                      {
+                        "Discount": {
+                          "type": "Currency"
+                        }
+                      },
+                      {
+                        "Total Amount": {
+                          "type": "Currency"
+                        }
+                      },
+                      {
+                        "Payment Received": {
+                          "type": "Currency"
+                        }
+                      },
+                      {
+                        "Outstanding Balance": {
+                          "type": "Currency"
+                        }
+                      },
+                      {
+                        "Reconciliation Status": {
+                          "type": "Selection",
+                          "options": [
+                            "Unmatched",
+                            "Partial",
+                            "Full Match",
+                            "Overpaid"
+                          ]
+                        }
+                      },
+                      {
+                        "Issue Date": {
+                          "type": "Date"
+                        }
+                      },
+                      {
+                        "Due Date": {
+                          "type": "Date"
+                        }
+                      },
+                      {
+                        "Payment Terms": {
+                          "type": "Selection",
+                          "options": [
+                            "Net 15",
+                            "Net 30",
+                            "Net 60"
+                          ]
+                        }
+                      },
+                      {
+                        "Overdue Reminder Count": {
+                          "type": "Integer"
+                        }
+                      },
+                      {
+                        "Finance Manager": {
+                          "type": "Text"
+                        }
+                      },
+                      {
+                        "Notes": {
+                          "type": "MultiText"
+                        }
+                      },
+                      {
+                        "Supporting Document": {
+                          "type": "File"
+                        }
+                      }
+                    ],
+                    "defaults": {},
+                    "availableActivities": {
+                      "standard": [
+                        "create",
+                        "view",
+                        "edit",
+                        "delete",
+                        "changeState"
+                      ],
+                      "custom": [],
+                      "stateFlow": {
+                        "transitions": {
+                          "changeState": [
+                            "Draft"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "name": "submit_activity",
+                  "arguments": "{\"module\": \"Invoice\", \"activity\": \"create\", \"input\": {",
+                  "result": {
+                    "error": "Failed to parse tool call arguments for \"submit_activity\": The model provided invalid JSON. Raw arguments received: \"{\"module\": \"Invoice\", \"activity\": \"create\", \"input\": {\". Please provide valid JSON arguments for this tool call."
+                  }
+                },
+                {
+                  "name": "submit_activity",
+                  "arguments": {
+                    "module": "Invoice",
+                    "activity": "create",
+                    "input": {
+                      "Client": "Apex Solutions Sdn Bhd",
+                      "Description": "Consulting services",
+                      "Billing Amount": 15000,
+                      "Tax": 1200,
+                      "Discount": 0,
+                      "Total Amount": 16200,
+                      "Payment Terms": "Net 30",
+                      "Issue Date": "2024-06-01",
+                      "Due Date": "2024-07-01"
+                    },
+                    "ai": {
+                      "reasoning": "Creating invoice for Apex Solutions for RM 15,000 consulting services with 8% tax as requested",
+                      "model": "gpt-4",
+                      "confidence": 1
+                    }
+                  },
+                  "result": {
+                    "module": "Invoice",
+                    "activity": "create",
+                    "entryId": 767242,
+                    "documentId": "NVC01802",
+                    "state": "Draft",
+                    "availableActivities": {
+                      "standard": [
+                        "create",
+                        "view",
+                        "edit",
+                        "delete",
+                        "changeState"
+                      ],
+                      "custom": [
+                        "Generate Invoice",
+                        "Void Invoice"
+                      ],
+                      "stateFlow": {
+                        "currentState": "Draft",
+                        "transitions": {
+                          "Generate Invoice": [
+                            "Pending Approval"
+                          ],
+                          "Void Invoice": [
+                            "Void"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              ],
+              "response_preview": "Invoice has been created as a draft:\n\n- **Client:** Apex Solutions Sdn Bhd\n- **Description:** Consulting services\n- **Billing Amount:** RM 15,000\n- **Tax:** RM 1,200\n- **Total Amount:** RM 16,200\n- **"
+            },
+            "task_2": {
+              "skipped": true,
+              "reason": "Stream ended without completion event"
+            },
+            "task_3": {
+              "skipped": false,
+              "success": true,
+              "issues": [],
+              "hallucinated": false,
+              "latency_ms": 571331,
+              "input_tokens": 7213,
+              "output_tokens": 1086,
+              "cost_usd": 0.00634549,
+              "tool_calls": [
+                "list_workspaces",
+                "set_workspace",
+                "get_entry"
+              ],
+              "tool_call_details": [
+                {
+                  "name": "list_workspaces",
+                  "arguments": {
+                    "search": "2234"
+                  },
+                  "result": []
+                },
+                {
+                  "name": "set_workspace",
+                  "arguments": {
+                    "workspaceId": "2234"
+                  },
+                  "result": {
+                    "id": 2234,
+                    "api": "1.0",
+                    "version": "umKTHaacEeeu",
+                    "builder": false,
+                    "lastUpdatedOn": "2026-05-26T09:52:13.863+08:00",
+                    "inLobby": false,
+                    "name": "Test",
+                    "vectors": [
+                      {
+                        "id": "18403",
+                        "emoji": null,
+                        "name": "Test",
+                        "color": null,
+                        "menus": [],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18403",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18408",
+                        "emoji": "🔗",
+                        "name": "Link Test",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18408",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18411",
+                        "emoji": "📦",
+                        "name": "Product",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18411",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18417",
+                        "emoji": "🏢",
+                        "name": "Client",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18417",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18418",
+                        "emoji": "🧾",
+                        "name": "Invoice",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18418",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18419",
+                        "emoji": "💳",
+                        "name": "Payment",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18419",
+                        "published": true,
+                        "background": null
+                      }
+                    ],
+                    "source": null,
+                    "menus": [
+                      {
+                        "id": "18403",
+                        "emoji": null,
+                        "name": "Test",
+                        "color": null,
+                        "menus": [],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18403",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18408",
+                        "emoji": "🔗",
+                        "name": "Link Test",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18408",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18411",
+                        "emoji": "📦",
+                        "name": "Product",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18411",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18417",
+                        "emoji": "🏢",
+                        "name": "Client",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18417",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18418",
+                        "emoji": "🧾",
+                        "name": "Invoice",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18418",
+                        "published": true,
+                        "background": null
+                      },
+                      {
+                        "id": "18419",
+                        "emoji": "💳",
+                        "name": "Payment",
+                        "color": null,
+                        "menus": [
+                          {
+                            "id": "defaultListing",
+                            "emoji": null,
+                            "name": "default",
+                            "x": true
+                          }
+                        ],
+                        "isProfile": false,
+                        "currentWorkspace": true,
+                        "canCreate": true,
+                        "module": "18419",
+                        "published": true,
+                        "background": null
+                      }
+                    ],
+                    "widgets": null,
+                    "dashboard": null,
+                    "shortcuts": null,
+                    "background": null,
+                    "backgroundColor": null,
+                    "color": null,
+                    "icon": null,
+                    "theme": null,
+                    "logo": null,
+                    "roles": [
+                      "Workspace Admin"
+                    ],
+                    "users": [
+                      {
+                        "username": "dylon.wongchungyee@inistate.com",
+                        "disable": false,
+                        "displayName": "Dylon Wong",
+                        "profilePictureUrl": "https://ftsp.s3-ap-southeast-1.amazonaws.com/profiles/udXNuHdt-pp.jpg",
+                        "profileId": "ed0cd539-6698-4675-8c1d-9213f89c95ae"
+                      },
+                      {
+                        "username": "jesmondsxtay@gmail.com",
+                        "disable": false,
+                        "displayName": "Jesmond Tay Soon Xiang",
+                        "profilePictureUrl": null,
+                        "profileId": "f600005f-f0e8-4d65-91dd-c95fd29c6eb2"
+                      }
+                    ],
+                    "states": [
+                      {
+                        "id": "9d4e92c1-ba81-46d8-9ffd-5fb3b64f0cfa",
+                        "name": "Active",
+                        "color": "#1E6B45",
+                        "initial": true,
+                        "module": "18408"
+                      },
+                      {
+                        "id": "cb1d1ff0-b37b-4e2e-9675-8ab62ece9951",
+                        "name": "Draft",
+                        "color": "#5A6070",
+                        "initial": true,
+                        "module": "18411"
+                      },
+                      {
+                        "id": "c3660359-486e-40a2-8d0a-13d3e1b76bcb",
+                        "name": "Active",
+                        "color": "#1E6B45",
+                        "module": "18411"
+                      },
+                      {
+                        "id": "22c34775-bd0b-4b5d-a53f-a50fb0c16d62",
+                        "name": "Archived",
+                        "color": "#C0392B",
+                        "module": "18411"
+                      },
+                      {
+                        "id": "8933138c-e31f-4a27-a84f-cc6a8fedb4f4",
+                        "name": "Active",
+                        "color": "#1E6B45",
+                        "initial": true,
+                        "module": "18417"
+                      },
+                      {
+                        "id": "207c1305-d490-4730-bd60-8c4b9f4d8f29",
+                        "name": "Inactive",
+                        "color": "#5A6070",
+                        "module": "18417"
+                      },
+                      {
+                        "id": "a9fd2691-da62-4c8e-9b4d-66611ccb4a90",
+                        "name": "Draft",
+                        "color": "#5A6070",
+                        "initial": true,
+                        "module": "18418"
+                      },
+                      {
+                        "id": "9694cfa9-c9c9-4e15-bef5-73cc93d41c23",
+                        "name": "Pending Approval",
+                        "color": "#A07828",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "09b24418-d123-40ea-928e-ab013f87c744",
+                        "name": "Sent",
+                        "color": "#2968A8",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "2ff59ce7-fcae-4eed-a7cd-bfdc67a72515",
+                        "name": "Paid",
+                        "color": "#1E6B45",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "04ecd06f-dad7-4d34-93ee-4e8a7ef1a9dc",
+                        "name": "Overdue",
+                        "color": "#C0392B",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "925d4c99-a38d-4d33-8166-a5488a44b24f",
+                        "name": "Escalated",
+                        "color": "#8B2D2D",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "eb5fff45-0123-41ac-936f-a9ff2fc8d14e",
+                        "name": "Legal Review",
+                        "color": "#6B4D91",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "751e6000-c925-4b68-9cfa-fe27e49f6bba",
+                        "name": "Void",
+                        "color": "#5A6070",
+                        "module": "18418"
+                      },
+                      {
+                        "id": "77cc5634-244e-4ae5-ad36-c464d308cc5c",
+                        "name": "Pending Reconciliation",
+                        "color": "#A07828",
+                        "initial": true,
+                        "module": "18419"
+                      },
+                      {
+                        "id": "14128191-4c12-4e8f-befc-491ef5df88cc",
+                        "name": "Matched",
+                        "color": "#1E6B45",
+                        "module": "18419"
+                      },
+                      {
+                        "id": "4555bf96-7aa7-4673-aacf-a32dc07e48d2",
+                        "name": "Under Review",
+                        "color": "#C0392B",
+                        "module": "18419"
+                      },
+                      {
+                        "id": "516138a6-4466-4830-8e81-1806d13313c4",
+                        "name": "Rejected",
+                        "color": "#8B2D2D",
+                        "module": "18419"
+                      },
+                      {
+                        "id": "9a8fb171-98c2-4893-8328-21997f133b78",
+                        "name": "Unmatched",
+                        "color": "#C0392B",
+                        "module": "18419"
+                      },
+                      {
+                        "id": "a88af366-5eea-472b-ad8d-8cdc557a34c2",
+                        "name": "Overpayment",
+                        "color": "#6B4D91",
+                        "module": "18419"
+                      },
+                      {
+                        "id": "44b8fe18-4cfe-4963-a2c9-78605b643cef",
+                        "name": "Refunded",
+                        "color": "#2A7B50",
+                        "module": "18419"
+                      }
+                    ],
+                    "contextModuleId": "",
+                    "profile": {
+                      "displayName": "Jesmond Tay Soon Xiang",
+                      "firstName": null,
+                      "lastName": null,
+                      "email": "jesmondsxtay@gmail.com",
+                      "phoneNumber": null,
+                      "profilePictureUrl": null,
+                      "apiKey": "f600005f-f0e8-4d65-91dd-c95fd29c6eb2:ce79726ff67b461482ba3f28ee8c9f8f"
+                    },
+                    "hasContext": false,
+                    "scan": {
+                      "m": null,
+                      "g": null
+                    },
+                    "country": null
+                  }
+                },
+                {
+                  "name": "get_entry",
+                  "arguments": {
+                    "module": "Invoice",
+                    "entryId": "767237"
+                  },
+                  "result": {
+                    "module": "Invoice",
+                    "entryId": 767237,
+                    "documentId": "NVC01799",
+                    "data": {
+                      "Invoice Number": "BENCH-1779959818975",
+                      "Client": "Pinnacle Ventures Sdn Bhd",
+                      "Description": "Consulting services — TestBench setup entry",
+                      "Billing Amount": 15000,
+                      "Tax": 1200,
+                      "Total Amount": 16200,
+                      "Issue Date": "2026-04-01T00:00:00+08:00",
+                      "Due Date": "2026-04-30T00:00:00+08:00",
+                      "Payment Terms": "Net 30",
+                      "Finance Manager": "Jesmond Tay"
+                    },
+                    "state": "Draft",
+                    "date": "2026-05-28T00:00:00+08:00",
+                    "createdBy": "jesmondsxtay@gmail.com",
+                    "createdDate": "2026-05-28T17:16:59.166+08:00",
+                    "updatedBy": "jesmondsxtay@gmail.com",
+                    "updatedDate": "2026-05-28T17:16:59.174+08:00",
+                    "availableActivities": {
+                      "standard": [
+                        "create",
+                        "view",
+                        "edit",
+                        "delete",
+                        "changeState"
+                      ],
+                      "custom": [
+                        "Generate Invoice",
+                        "Void Invoice"
+                      ],
+                      "stateFlow": {
+                        "currentState": "Draft",
+                        "transitions": {
+                          "Generate Invoice": [
+                            "Pending Approval"
+                          ],
+                          "Void Invoice": [
+                            "Void"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              ],
+              "response_preview": "Based on the invoice entry with ID 767237 in workspace 2234, here are the currently available actions:\n\n### Standard Activities:\n1. **View**: View invoice details\n2. **Edit**: Modify invoice informati"
+            },
+            "task_4": {
+              "skipped": false,
+              "success": true,
+              "issues": [],
+              "hallucinated": false,
+              "latency_ms": 451823,
+              "input_tokens": 5804,
+              "output_tokens": 1667,
+              "cost_usd": 0.0068429300000000005,
+              "tool_calls": [
+                "list_modules",
+                "list_entries",
+                "list_entries"
+              ],
+              "tool_call_details": [
+                {
+                  "name": "list_modules",
+                  "arguments": {
+                    "workspaceId": "2234"
+                  },
+                  "result": [
+                    {
+                      "name": "Test",
+                      "emoji": null
+                    },
+                    {
+                      "name": "Link Test",
+                      "emoji": "🔗"
+                    },
+                    {
+                      "name": "Product",
+                      "emoji": "📦"
+                    },
+                    {
+                      "name": "Client",
+                      "emoji": "🏢"
+                    },
+                    {
+                      "name": "Invoice",
+                      "emoji": "🧾"
+                    },
+                    {
+                      "name": "Payment",
+                      "emoji": "💳"
+                    }
+                  ]
+                },
+                {
+                  "name": "list_entries",
+                  "arguments": {
+                    "module": "Invoice",
+                    "workspaceId": "2234",
+                    "filters": {
+                      "Client": "Pinnacle Ventures Sdn Bhd",
+                      "Due Date": {
+                        "before": "2023-10-23"
+                      },
+                      "Status": {
+                        "not": "Paid"
+                      }
+                    },
+                    "fields": [
+                      "Invoice Number",
+                      "Due Date",
+                      "Amount",
+                      "Status"
+                    ]
+                  },
+                  "result": {
+                    "error": "Internal error",
+                    "message": "An unexpected error occurred",
+                    "details": null,
+                    "agent_action": "Unexpected error. Report to user."
+                  }
+                },
+                {
+                  "name": "list_entries",
+                  "arguments": {
+                    "module": "Invoice",
+                    "workspaceId": "2234",
+                    "filters": {
+                      "Client": "Pinnacle Ventures Sdn Bhd"
+                    },
+                    "fields": [
+                      "Invoice Number",
+                      "Due Date",
+                      "Status",
+                      "Amount"
+                    ]
+                  },
+                  "result": {
+                    "module": "Invoice",
+                    "listing": "Everything",
+                    "page": 0,
+                    "pageSize": 50,
+                    "totalItems": 5,
+                    "hasMore": false,
+                    "list": [
+                      {
+                        "entryId": 767244,
+                        "documentId": "NVC01803",
+                        "data": {
+                          "Invoice Number": "BENCH-1779960956336",
+                          "Due Date": "2026-04-30T00:00:00+08:00"
+                        },
+                        "state": "Pending Approval",
+                        "date": "2026-05-28T00:00:00+08:00",
+                        "createdBy": "jesmondsxtay@gmail.com",
+                        "createdDate": "2026-05-28T17:35:56.555+08:00",
+                        "updatedBy": "jesmondsxtay@gmail.com",
+                        "updatedDate": "2026-05-28T17:37:45.008+08:00"
+                      },
+                      {
+                        "entryId": 767237,
+                        "documentId": "NVC01799",
+                        "data": {
+                          "Invoice Number": "BENCH-1779959818975",
+                          "Due Date": "2026-04-30T00:00:00+08:00"
+                        },
+                        "state": "Draft",
+                        "date": "2026-05-28T00:00:00+08:00",
+                        "createdBy": "jesmondsxtay@gmail.com",
+                        "createdDate": "2026-05-28T17:16:59.166+08:00",
+                        "updatedBy": "jesmondsxtay@gmail.com",
+                        "updatedDate": "2026-05-28T17:16:59.174+08:00"
+                      },
+                      {
+                        "entryId": 767230,
+                        "documentId": "NVC01795",
+                        "data": {
+                          "Invoice Number": "BENCH-1779959035336",
+                          "Due Date": "2026-04-30T00:00:00+08:00"
+                        },
+                        "state": "Pending Approval",
+                        "date": "2026-05-28T00:00:00+08:00",
+                        "createdBy": "jesmondsxtay@gmail.com",
+                        "createdDate": "2026-05-28T17:03:55.576+08:00",
+                        "updatedBy": "jesmondsxtay@gmail.com",
+                        "updatedDate": "2026-05-28T17:05:26.227+08:00"
+                      },
+                      {
+                        "entryId": 767226,
+                        "documentId": "NVC01793",
+                        "data": {
+                          "Invoice Number": "BENCH-1779958204992",
+                          "Due Date": "2026-04-30T00:00:00+08:00"
+                        },
+                        "state": "Pending Approval",
+                        "date": "2026-05-28T00:00:00+08:00",
+                        "createdBy": "jesmondsxtay@gmail.com",
+                        "createdDate": "2026-05-28T16:50:05.179+08:00",
+                        "updatedBy": "jesmondsxtay@gmail.com",
+                        "updatedDate": "2026-05-28T16:51:45.273+08:00"
+                      },
+                      {
+                        "entryId": 695359,
+                        "documentId": "NVC00002",
+                        "data": {
+                          "Invoice Number": "INV-2026-002",
+                          "Due Date": "2026-04-30T00:00:00+08:00"
+                        },
+                        "state": "Legal Review",
+                        "date": "2026-05-21T00:00:00+08:00",
+                        "createdBy": "jesmondsxtay@gmail.com",
+                        "createdDate": "2026-05-21T13:34:15.035+08:00",
+                        "updatedBy": "jesmondsxtay@gmail.com",
+                        "updatedDate": "2026-05-25T10:57:19.112+08:00"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "response_preview": "I found 5 invoices for Pinnacle Ventures Sdn Bhd in workspace 2234. Here's the analysis for overdue invoices:\n\n1. **Current Date**: Today is 2023-10-23\n2. **Overdue Definition**: Invoices where Due Da"
+            }
+          },
+          "score": 3,
+          "total": 4,
+          "total_tokens": 24061,
+          "total_cost": 0.01812403,
+          "skipped": false
+        }
+      ]
+    }
+  }
+}

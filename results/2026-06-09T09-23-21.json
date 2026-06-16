@@ -1,0 +1,74 @@
+{
+  "invoice_workflow": {
+    "scenario": "Invoice Approval Workflow",
+    "models": {
+      "qwen3-coder-30b-local": [
+        {
+          "model": "Qwen3-Coder 30B (local)",
+          "tasks": {
+            "task_1": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call get_form before submit",
+                "Did not create invoice entry",
+                "Billing amount, tax or total incorrect; captured=[]"
+              ],
+              "hallucinated": false,
+              "latency_ms": 18082,
+              "input_tokens": 8154,
+              "output_tokens": 35,
+              "cost_usd": 0,
+              "tool_calls": [],
+              "tool_call_details": [],
+              "response_preview": "I'll help you create an invoice entry in the system. First, I need to identify which module to use for invoices.\n\n<function=list_modules>\n</function>\n</tool_call><|im_end|>"
+            },
+            "task_2": {
+              "skipped": true,
+              "reason": "Local model unreachable: fetch failed"
+            },
+            "task_3": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call get_entry",
+                "Response did not mention available activities"
+              ],
+              "hallucinated": false,
+              "latency_ms": 995,
+              "input_tokens": 8126,
+              "output_tokens": 36,
+              "cost_usd": 0,
+              "tool_calls": [],
+              "tool_call_details": [],
+              "response_preview": "<function=get_entry>\n<parameter=module>\nInvoice\n</parameter>\n<parameter=entryId>\n802957\n</parameter>\n</function>\n</tool_call><|im_end|>"
+            },
+            "task_4": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call list_entries",
+                "Hallucinated invoice data without checking database"
+              ],
+              "hallucinated": true,
+              "latency_ms": 1219,
+              "input_tokens": 8124,
+              "output_tokens": 38,
+              "cost_usd": 0,
+              "tool_calls": [],
+              "tool_call_details": [],
+              "response_preview": "I need to check if there are any overdue invoices for Pinnacle Ventures Sdn Bhd. First, I'll need to list the available modules to understand what data structures are available.\n<|im_end|>"
+            }
+          },
+          "score": 0,
+          "total": 4,
+          "total_tokens": 24513,
+          "total_cost": 0,
+          "total_tool_calls": 0,
+          "avg_latency_ms": 6765,
+          "skipped": false
+        }
+      ]
+    }
+  }
+}

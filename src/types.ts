@@ -81,7 +81,7 @@ export interface Task<TAssets> {
   id: string;
   name: string;
   prompt: string | ((assets: TAssets) => string);
-  evaluate: (toolCalls: ToolCall[], response: string) => EvaluationResult;
+  evaluate: (toolCalls: ToolCall[], response: string, assets?: TAssets) => EvaluationResult;
   verify?: (bridge: IBridge, assets: TAssets) => Promise<EvaluationResult>;
   maxSteps?: number;
   setup?: (bridge: IBridge, assets: TAssets) => Promise<void>;
@@ -115,6 +115,17 @@ export interface RawMcpTool {
   name: string;
   description?: string;
   inputSchema?: Record<string, unknown>;
+}
+
+export interface ResultMeta {
+  testbenchVersion: string;
+  mcpVersion: string | null;
+  runAt: string;
+}
+
+export interface ResultFile {
+  meta: ResultMeta;
+  scenarios: Record<string, ScenarioResult>;
 }
 
 

@@ -1,0 +1,72 @@
+{
+  "invoice_workflow": {
+    "scenario": "Invoice Approval Workflow",
+    "models": {
+      "qwen3-coder-30b-local": [
+        {
+          "model": "Qwen3-Coder 30B (local)",
+          "tasks": {
+            "task_1": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call get_form before submit",
+                "Did not create invoice entry",
+                "Billing amount, tax or total incorrect; captured=[]"
+              ],
+              "hallucinated": false,
+              "latency_ms": 14655,
+              "input_tokens": 8154,
+              "output_tokens": 35,
+              "cost_usd": 0,
+              "tool_calls": [],
+              "tool_call_details": []
+            },
+            "task_2": {
+              "skipped": true,
+              "reason": "Local model unreachable: fetch failed"
+            },
+            "task_3": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call get_entry"
+              ],
+              "hallucinated": false,
+              "latency_ms": 1682,
+              "input_tokens": 8126,
+              "output_tokens": 73,
+              "cost_usd": 0,
+              "tool_calls": [],
+              "tool_call_details": [],
+              "response_preview": "I need to check what actions are available for invoice entry ID 802977. First, I'll get the entry details to see its current state and available activities.\n\n<function=get_entry>\n<parameter=module>\nIn"
+            },
+            "task_4": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call list_entries",
+                "Hallucinated invoice data without checking database"
+              ],
+              "hallucinated": true,
+              "latency_ms": 1378,
+              "input_tokens": 8124,
+              "output_tokens": 38,
+              "cost_usd": 0,
+              "tool_calls": [],
+              "tool_call_details": [],
+              "response_preview": "I need to check if there are any overdue invoices for Pinnacle Ventures Sdn Bhd. First, I'll need to list the available modules to understand what data structures are available.\n<|im_end|>"
+            }
+          },
+          "score": 0,
+          "total": 4,
+          "total_tokens": 24550,
+          "total_cost": 0,
+          "total_tool_calls": 0,
+          "avg_latency_ms": 5905,
+          "skipped": false
+        }
+      ]
+    }
+  }
+}

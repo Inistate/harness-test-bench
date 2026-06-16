@@ -1,0 +1,6 @@
+{
+  "invoice_workflow": {
+    "scenario": "Invoice Approval Workflow",
+    "models": {}
+  }
+}

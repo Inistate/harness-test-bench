@@ -1,0 +1,26 @@
+{
+  "invoice_workflow": {
+    "scenario": "Invoice Approval Workflow",
+    "models": {
+      "qwen3-coder-30b-local": [
+        {
+          "model": "Qwen3-Coder 30B (local)",
+          "tasks": {
+            "task_1": {
+              "skipped": true,
+              "reason": "Local model unreachable after 3 attempts"
+            }
+          },
+          "score": 0,
+          "total": 4,
+          "total_tokens": 0,
+          "total_cost": 0,
+          "total_tool_calls": 0,
+          "avg_latency_ms": 0,
+          "skipped": true,
+          "skip_reason": "Local model unreachable after 3 attempts"
+        }
+      ]
+    }
+  }
+}

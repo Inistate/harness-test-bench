@@ -1,6 +1,7 @@
 .env
 node_modules/
-results/
 debug.log
 .claude/
 *.json
+!results/
+!results/*.json

@@ -1,0 +1,24 @@
+{
+  "invoice_workflow": {
+    "scenario": "Invoice Approval Workflow",
+    "models": {
+      "tencent/hy3-preview": [
+        {
+          "model": "Hy3 Preview",
+          "tasks": {
+            "task_1": {
+              "skipped": true,
+              "reason": "No cookie auth credentials found"
+            }
+          },
+          "score": 0,
+          "total": 4,
+          "total_tokens": 0,
+          "total_cost": 0,
+          "skipped": true,
+          "skip_reason": "No cookie auth credentials found"
+        }
+      ]
+    }
+  }
+}

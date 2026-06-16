@@ -1,0 +1,96 @@
+{
+  "invoice_workflow": {
+    "scenario": "Invoice Approval Workflow",
+    "models": {
+      "deepseek/deepseek-v4-pro": [
+        {
+          "model": "DeepSeek V4 Pro",
+          "tasks": {
+            "task_1": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call get_form before submit",
+                "Did not create invoice entry",
+                "Billing amount, tax or total incorrect"
+              ],
+              "hallucinated": false,
+              "latency_ms": 17875,
+              "input_tokens": 4694,
+              "output_tokens": 386,
+              "cost_usd": 0.0023777100000000003,
+              "tool_calls": [
+                "set_workspace",
+                "list_workspaces",
+                "list_modules"
+              ],
+              "response_preview": "I'm encountering consistent **HTTP 500** errors across all API calls — workspace listing, workspace selection, and module listing all return server-side errors. This appears to be a temporary server o"
+            },
+            "task_2": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call get_entry to check current state",
+                "Did not submit Generate Invoice activity"
+              ],
+              "hallucinated": false,
+              "latency_ms": 13949,
+              "input_tokens": 4764,
+              "output_tokens": 192,
+              "cost_usd": 0.00223938,
+              "tool_calls": [
+                "list_modules",
+                "list_workspaces",
+                "set_workspace",
+                "list_workspaces"
+              ],
+              "response_preview": "I'm encountering a server-side issue — all API calls to the Inistate backend are returning **HTTP 500** errors right now. This appears to be a temporary outage affecting the workspace `2234` and the b"
+            },
+            "task_3": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call get_entry"
+              ],
+              "hallucinated": false,
+              "latency_ms": 20062,
+              "input_tokens": 4668,
+              "output_tokens": 249,
+              "cost_usd": 0.0022472100000000004,
+              "tool_calls": [
+                "list_modules",
+                "list_workspaces",
+                "set_workspace"
+              ],
+              "response_preview": "It looks like all calls to the API are returning HTTP 500 internal server errors. This could indicate:\n\n1. **Server-side issue** — The Inistate API may be experiencing a temporary outage.\n2. **Invalid"
+            },
+            "task_4": {
+              "skipped": false,
+              "success": false,
+              "issues": [
+                "Did not call list_entries"
+              ],
+              "hallucinated": false,
+              "latency_ms": 27213,
+              "input_tokens": 4733,
+              "output_tokens": 234,
+              "cost_usd": 0.002262435,
+              "tool_calls": [
+                "set_workspace",
+                "list_modules",
+                "list_workspaces",
+                "list_workspaces"
+              ],
+              "response_preview": "It appears that the API is currently returning **HTTP 500** errors across all requests — both for listing workspaces and for direct module access with workspace ID `2234`. This indicates a server-side"
+            }
+          },
+          "score": 0,
+          "total": 4,
+          "total_tokens": 19920,
+          "total_cost": 0.009126735,
+          "skipped": false
+        }
+      ]
+    }
+  }
+}
