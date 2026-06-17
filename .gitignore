@@ -3,5 +3,4 @@ node_modules/
 debug.log
 .claude/
 *.json
-!results/
-!results/*.json
+results/

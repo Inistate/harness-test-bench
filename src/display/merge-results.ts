@@ -8,7 +8,8 @@ function loadJson(filePath: string): Record<string, ScenarioResult> {
     console.error(`File not found: ${resolved}`);
     process.exit(1);
   }
-  return JSON.parse(fs.readFileSync(resolved, "utf8")) as Record<string, ScenarioResult>;
+  const raw = JSON.parse(fs.readFileSync(resolved, "utf8")) as Record<string, unknown>;
+  return (raw.scenarios ?? raw) as Record<string, ScenarioResult>;
 }
 
 function mergeResults(files: string[], outPath: string): void {

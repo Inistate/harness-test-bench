@@ -2,6 +2,7 @@ import { OpenRouter, fromChatMessages, stepCountIs } from "@openrouter/agent";
 import type { Tool } from "@openrouter/agent";
 import * as fs from "fs";
 import * as path from "path";
+import { execSync } from "child_process";
 import { MCPBridge } from "../bridges/mcp-bridge";
 import type { BenchmarkConfig, IBridge, Model, ModelRunResult, RawMcpTool, ResultFile, Scenario, ScenarioResult, TaskResult, ToolCall } from "../types";
 
@@ -16,12 +17,20 @@ function readPackageVersion(pkgPath: string): string | null {
   }
 }
 
-function getVersions(mcpPath: string): { testbenchVersion: string; mcpVersion: string | null } {
+function getMcpGitHash(mcpPath: string): string | null {
+  try {
+    const repoDir = path.dirname(mcpPath);
+    return execSync(`git -C "${repoDir}" rev-parse HEAD`, { encoding: "utf8" }).trim();
+  } catch { return null; }
+}
+
+function getVersions(mcpPath: string): { testbenchVersion: string; mcpVersion: string | null; mcpCommit: string | null } {
   const tbPkgPath = path.join(__dirname, "../../package.json");
   const mcpPkgPath = path.join(path.dirname(mcpPath), "../package.json");
   return {
     testbenchVersion: readPackageVersion(tbPkgPath) ?? "unknown",
     mcpVersion: readPackageVersion(mcpPkgPath),
+    mcpCommit: getMcpGitHash(mcpPath),
   };
 }
 
@@ -650,9 +659,9 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<Record<stri
   const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
   const outPath = path.join(__dirname, "../../results", `${timestamp}.json`);
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  const { testbenchVersion, mcpVersion } = getVersions(mcpPath);
+  const { testbenchVersion, mcpVersion, mcpCommit } = getVersions(mcpPath);
   const resultFile: ResultFile = {
-    meta: { testbenchVersion, mcpVersion, runAt: new Date().toISOString() },
+    meta: { testbenchVersion, mcpVersion, mcpCommit, runAt: new Date().toISOString() },
     scenarios: allResults,
   };
   fs.writeFileSync(outPath, JSON.stringify(resultFile, null, 2));
