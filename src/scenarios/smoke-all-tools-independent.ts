@@ -32,9 +32,9 @@ function hasError(result: unknown): boolean {
 function getModuleList(result: unknown): Array<Record<string, unknown>> {
   if (Array.isArray(result)) return result as Array<Record<string, unknown>>;
   const r = result as Record<string, unknown>;
-  if (Array.isArray(r?.list))    return r.list    as Array<Record<string, unknown>>;
+  if (Array.isArray(r?.list)) return r.list as Array<Record<string, unknown>>;
   if (Array.isArray(r?.modules)) return r.modules as Array<Record<string, unknown>>;
-  if (Array.isArray((r?.data as Record<string, unknown>)?.list))    return (r.data as Record<string, unknown>).list    as Array<Record<string, unknown>>;
+  if (Array.isArray((r?.data as Record<string, unknown>)?.list)) return (r.data as Record<string, unknown>).list as Array<Record<string, unknown>>;
   if (Array.isArray((r?.data as Record<string, unknown>)?.modules)) return (r.data as Record<string, unknown>).modules as Array<Record<string, unknown>>;
   return [];
 }
@@ -48,7 +48,7 @@ async function deleteAllModulesMatching(bridge: IBridge, assets: ProjectManageme
 
   // Source 1: list_modules (includes unpublished modules)
   try {
-    const listResult = await bridge.callTool("list_modules", {}) as unknown;
+    const listResult = await bridge.callTool("list_modules", { workspaceId: assets.workspaceId }) as unknown;
     for (const m of getModuleList(listResult)) {
       const n = String(m?.name ?? "");
       if (n.toLowerCase().includes(pattern)) candidateNames.add(n);
@@ -63,7 +63,9 @@ async function deleteAllModulesMatching(bridge: IBridge, assets: ProjectManageme
     if (n.toLowerCase().includes(pattern)) candidateNames.add(n);
   }
 
-  if (candidateNames.size === 0) return;
+  if (candidateNames.size === 0) {
+    return;
+  }
 
   const api = new ApiBridge();
   for (const name of candidateNames) {
@@ -80,37 +82,37 @@ const CLIENT_PROJECTS_SCHEMA = {
   name: "Client Projects", icon: "📋",
   description: "Track and manage client projects",
   states: [
-    { name: "Draft",      color: "#5A6070", initial: true },
-    { name: "Active",     color: "#2968A8" },
-    { name: "On Hold",    color: "#A07828" },
-    { name: "Completed",  color: "#2A7B50" },
-    { name: "Cancelled",  color: "#C0392B" },
+    { name: "Draft", color: "#5A6070", initial: true },
+    { name: "Active", color: "#2968A8" },
+    { name: "On Hold", color: "#A07828" },
+    { name: "Completed", color: "#2A7B50" },
+    { name: "Cancelled", color: "#C0392B" },
   ],
   information: [
-    { name: "Project Name", type: "Text",      ai_hint: "Name of the project" },
-    { name: "Client",       type: "Text",      ai_hint: "Client name" },
-    { name: "Status",       type: "Selection", options: ["Draft", "Active", "On Hold", "Completed", "Cancelled"], ai_hint: "Project status" },
-    { name: "Start Date",   type: "Date",      ai_hint: "Project start date" },
-    { name: "Deadline",     type: "Date",      ai_hint: "Project deadline" },
-    { name: "Owner",        type: "Text",      ai_hint: "Project owner" },
-    { name: "Budget",       type: "Currency",  ai_hint: "Project budget" },
-    { name: "Priority",     type: "Selection", options: ["Low", "Medium", "High"], ai_hint: "Project priority" },
-    { name: "Notes",        type: "MultiText", ai_hint: "Additional notes" },
+    { name: "Project Name", type: "Text", ai_hint: "Name of the project" },
+    { name: "Client", type: "Text", ai_hint: "Client name" },
+    { name: "Status", type: "Selection", options: ["Draft", "Active", "On Hold", "Completed", "Cancelled"], ai_hint: "Project status" },
+    { name: "Start Date", type: "Date", ai_hint: "Project start date" },
+    { name: "Deadline", type: "Date", ai_hint: "Project deadline" },
+    { name: "Owner", type: "Text", ai_hint: "Project owner" },
+    { name: "Budget", type: "Currency", ai_hint: "Project budget" },
+    { name: "Priority", type: "Selection", options: ["Low", "Medium", "High"], ai_hint: "Project priority" },
+    { name: "Notes", type: "MultiText", ai_hint: "Additional notes" },
   ],
   activities: [
-    { name: "Start Project",    actor: "human" },
-    { name: "Pause Project",    actor: "human" },
-    { name: "Resume Project",   actor: "human" },
+    { name: "Start Project", actor: "human" },
+    { name: "Pause Project", actor: "human" },
+    { name: "Resume Project", actor: "human" },
     { name: "Complete Project", actor: "human" },
-    { name: "Cancel Project",   actor: "human" },
+    { name: "Cancel Project", actor: "human" },
   ],
   flows: [
-    { activity: "Start Project",    from: "Draft",   to: "Active"    },
-    { activity: "Pause Project",    from: "Active",  to: "On Hold"   },
-    { activity: "Resume Project",   from: "On Hold", to: "Active"    },
-    { activity: "Complete Project", from: "Active",  to: "Completed" },
-    { activity: "Cancel Project",   from: "Draft",   to: "Cancelled" },
-    { activity: "Cancel Project",   from: "Active",  to: "Cancelled" },
+    { activity: "Start Project", from: "Draft", to: "Active" },
+    { activity: "Pause Project", from: "Active", to: "On Hold" },
+    { activity: "Resume Project", from: "On Hold", to: "Active" },
+    { activity: "Complete Project", from: "Active", to: "Completed" },
+    { activity: "Cancel Project", from: "Draft", to: "Cancelled" },
+    { activity: "Cancel Project", from: "Active", to: "Cancelled" },
   ],
 };
 
@@ -118,15 +120,16 @@ async function ensureClientProjectsModule(bridge: IBridge, assets: ProjectManage
   await bridge.callTool("switch_mode", { mode: "configure" });
   const { name, ...schemaFields } = CLIENT_PROJECTS_SCHEMA;
   await deleteAllModulesMatching(bridge, assets, name);
-  await bridge.callTool("create_module", { name, workspaceId: assets.workspaceId, ...schemaFields });
+  const createResult = await bridge.callTool("create_module", { name, workspaceId: assets.workspaceId, ...schemaFields }) as Record<string, unknown>;
+  if (hasError(createResult)) throw new Error(`ensureClientProjectsModule: create_module failed — ${JSON.stringify(createResult)}`);
   console.log(`\n    → Created "${name}" module (task prerequisite)`);
   await bridge.callTool("switch_mode", { mode: "runtime" });
 }
 
 const SEED_ENTRIES = [
-  { "Project Name": "CRM Integration", Client: "Gamma Inc",   "Start Date": "2026-06-01", Deadline: "2026-12-31", Owner: "Carol", Budget: 48000, Priority: "High",   Notes: "Phase 1 kickoff completed" },
-  { "Project Name": "Brand Refresh",   Client: "Delta Co",    "Start Date": "2026-03-01", Deadline: "2026-08-31", Owner: "Dave",  Budget: 12000, Priority: "Medium" },
-  { "Project Name": "Data Migration",  Client: "Epsilon LLC", "Start Date": "2026-04-01", Deadline: "2026-10-31", Owner: "Eve",   Budget: 27000, Priority: "Low" },
+  { "Project Name": "CRM Integration", Client: "Gamma Inc", "Start Date": "2026-06-01", Deadline: "2026-12-31", Owner: "Carol", Budget: 48000, Priority: "High", Notes: "Phase 1 kickoff completed" },
+  { "Project Name": "Brand Refresh", Client: "Delta Co", "Start Date": "2026-03-01", Deadline: "2026-08-31", Owner: "Dave", Budget: 12000, Priority: "Medium" },
+  { "Project Name": "Data Migration", Client: "Epsilon LLC", "Start Date": "2026-04-01", Deadline: "2026-10-31", Owner: "Eve", Budget: 27000, Priority: "Low" },
 ];
 
 async function ensureTestEntries(bridge: IBridge, assets: ProjectManagementAssets): Promise<void> {
@@ -198,14 +201,13 @@ const scenario: Scenario<ProjectManagementAssets> = {
       prompt: (assets) =>
         `I'm getting set up in Inistate for project management — can you find my available workspaces ` +
         `and switch me into workspace ${assets.workspaceId}?`,
-        // workspaceId kept here intentionally — task 1 is specifically about workspace discovery
+      // workspaceId kept here intentionally — task 1 is specifically about workspace discovery
       evaluate: (toolCalls, _response, assets) => {
         const issues: string[] = [];
         if (!calledSuccessfully(toolCalls, "list_workspaces")) issues.push("Did not call list_workspaces");
-        const listCall = toolCalls.find((t) => t.name === "list_workspaces");
-        const autoSelected = (listCall?.result as Record<string, unknown>)?.autoSelected;
+        const autoSelectedCheck = toolCalls.some((t) => t.name === "list_workspaces" && (t?.result as Record<string, unknown>)?.autoSelected);
         const setWs = toolCalls.find((t) => t.name === "set_workspace" && !hasError(t.result));
-        if (!setWs && !autoSelected) {
+        if (!setWs && !autoSelectedCheck) {
           issues.push("Did not call set_workspace");
         } else if (setWs && assets && String(setWs.arguments?.workspaceId ?? "") !== String(assets.workspaceId)) {
           issues.push(`set_workspace called with wrong workspaceId (got "${setWs.arguments?.workspaceId}", expected "${assets.workspaceId}")`);
@@ -223,10 +225,11 @@ const scenario: Scenario<ProjectManagementAssets> = {
         await bridge.callTool("switch_mode", { mode: "configure" });
       },
       prompt:
-        `Design a module for tracking client projects. It should have: ` +
+        `Design a module called "Client Projects" for tracking client projects. It should have: ` +
         `project name, client, status, start date, deadline, owner, and budget. ` +
-        `Please validate the design before finishing.` + 
-        `Workspace is already active, don't need to explicitly set it again.`,
+        `Please validate the design before finishing.` +
+        `Workspace is already active, don't need to explicitly set it again.` +
+        `Don't need to create module after designing — just design and validate.`,
       evaluate: (toolCalls) => {
         const issues: string[] = [];
         if (!calledSuccessfully(toolCalls, "design_workflow")) issues.push("Did not call design_workflow");
@@ -237,10 +240,12 @@ const scenario: Scenario<ProjectManagementAssets> = {
           const schema = validateCall.arguments?.schema as Record<string, unknown> | undefined;
           const info = Array.isArray(schema?.information) ? (schema!.information as Array<Record<string, unknown>>) : [];
           const fieldNames = info.map((f) => String(f?.name ?? "").toLowerCase());
+          process.stdout.write('Field names: ' + fieldNames.join(', ') + '\n');
           const required = ["project name", "client", "start date", "deadline", "owner", "budget"];
           const missing = required.filter((r) => !fieldNames.some((n) => n.includes(r) || r.includes(n)));
           const states = schema?.states as unknown[] | undefined;
-          if (!Array.isArray(states) || states.length === 0) missing.push("status");
+          const hasStatusField = fieldNames.some((n) => n.includes("status"));
+          if ((!Array.isArray(states) || states.length === 0) && !hasStatusField) missing.push("status");
           if (missing.length > 0) issues.push(`Validated design is missing fields: ${missing.join(", ")}`);
         }
         return { success: issues.length === 0, issues, hallucinated: false };
@@ -256,11 +261,10 @@ const scenario: Scenario<ProjectManagementAssets> = {
         await deleteAllModulesMatching(bridge, assets, "client project");
       },
       prompt: () =>
-        `Create a module named "Client Projects" with a lifecycle: Draft (initial), Active, On Hold, Completed, and Cancelled states. ` +
+        `Create a module named "Client Projects" with a states: Draft (initial), Active, On Hold, Completed, and Cancelled. ` +
         `Then show me what's inside it. ` +
-        `Finally update it: add a Priority field (Low/Medium/High) and a Notes field, ` +
-        `When updating, include all of the module's existing fields in the request, not just the ones you're changing — ` +
-        `the update replaces the full field list rather than merging it.`,
+        `Finally update it: add a "Priority" field (Low/Medium/High) and a "Notes" field, ` +
+        `When updating, include all of the module's existing fields in the request, not just the ones you're changing — `,
       evaluate: (toolCalls) => {
         const issues: string[] = [];
         // create_module response includes the full schema (information, states, activities)
@@ -281,7 +285,7 @@ const scenario: Scenario<ProjectManagementAssets> = {
           const info = updateCall.arguments?.information as Array<Record<string, unknown>> | undefined;
           const names = Array.isArray(info) ? info.map((f) => String(f?.name ?? "").toLowerCase()) : [];
           if (!names.some((n) => n.includes("priority"))) issues.push("update_module call did not add a Priority field");
-          if (!names.some((n) => n.includes("notes")))    issues.push("update_module call did not add a Notes field");
+          if (!names.some((n) => n.includes("notes"))) issues.push("update_module call did not add a Notes field");
         }
         return { success: issues.length === 0, issues, hallucinated: false };
       },
@@ -297,7 +301,7 @@ const scenario: Scenario<ProjectManagementAssets> = {
         const states = Array.isArray(schema?.states) ? (schema.states as unknown[]) : [];
         if (states.length === 0) issues.push("Module has no states defined");
         if (!names.some((n) => n.includes("priority"))) issues.push("Module schema is missing the Priority field");
-        if (!names.some((n) => n.includes("notes")))    issues.push("Module schema is missing the Notes field");
+        if (!names.some((n) => n.includes("notes"))) issues.push("Module schema is missing the Notes field");
         return { success: issues.length === 0, issues, hallucinated: false };
       },
     },
@@ -311,7 +315,7 @@ const scenario: Scenario<ProjectManagementAssets> = {
       },
       prompt: () =>
         `I need three new client projects logged in the Client Projects module.\n\n` +
-        `First, can you add this one on its own: a project called "CRM Integration" for Gamma Inc, ` +
+        `First, add this one on its own: a project called "CRM Integration" for Gamma Inc, ` +
         `status Active, running from 2026-06-01 to a 2026-12-31 deadline, owned by Carol, budget 48000, ` +
         `high priority, with a note that phase 1 kickoff is completed.\n\n` +
         `Then add these next two together in one batch: "Brand Refresh" for Delta Co (On Hold, ` +
@@ -320,7 +324,7 @@ const scenario: Scenario<ProjectManagementAssets> = {
         `If a field has no match in the form or its value is empty, just skip it and keep going.`,
       evaluate: (toolCalls) => {
         const singleCall = toolCalls.find((t) => t.name === "submit_activity" && !hasError(t.result));
-        const batchCall  = toolCalls.find((t) => t.name === "submit_activities" && !hasError(t.result));
+        const batchCall = toolCalls.find((t) => t.name === "submit_activities" && !hasError(t.result));
         const issues: string[] = [];
 
         if (!singleCall || hasError(singleCall.result)) {
@@ -340,7 +344,7 @@ const scenario: Scenario<ProjectManagementAssets> = {
             issues.push(`submit_activities batch did not contain exactly 2 items (got ${items?.length ?? 0})`);
           } else {
             const names = items.map((it) => String((it?.input as Record<string, unknown>)?.["Project Name"] ?? "").toLowerCase());
-            if (!names.some((n) => n.includes("brand refresh")))  issues.push("submit_activities batch missing Brand Refresh entry");
+            if (!names.some((n) => n.includes("brand refresh"))) issues.push("submit_activities batch missing Brand Refresh entry");
             if (!names.some((n) => n.includes("data migration"))) issues.push("submit_activities batch missing Data Migration entry");
           }
         }
@@ -354,15 +358,15 @@ const scenario: Scenario<ProjectManagementAssets> = {
 
         const entries = (
           Array.isArray(result) ? result :
-          Array.isArray(result?.list) ? result.list :
-          Array.isArray(result?.entries) ? result.entries :
-          []
+            Array.isArray(result?.list) ? result.list :
+              Array.isArray(result?.entries) ? result.entries :
+                []
         ) as Array<Record<string, unknown>>;
 
         const expected = [
-          { name: "CRM Integration", client: "Gamma Inc"   },
-          { name: "Brand Refresh",   client: "Delta Co"    },
-          { name: "Data Migration",  client: "Epsilon LLC" },
+          { name: "CRM Integration", client: "Gamma Inc" },
+          { name: "Brand Refresh", client: "Delta Co" },
+          { name: "Data Migration", client: "Epsilon LLC" },
         ];
 
         for (const exp of expected) {

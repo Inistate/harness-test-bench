@@ -51,10 +51,15 @@ export interface TaskResult {
   latency_ms?: number;
   input_tokens?: number;
   output_tokens?: number;
-  cost_usd?: number;
+  cost_usd?: number | null;
   tool_calls?: string[];
   tool_call_details?: ToolCall[];
   response_preview?: string;
+  _res_promise?: Promise<{
+    inputTokens: number;
+    outputTokens: number;
+    cost: number;
+  }>;
 }
 
 export interface ModelRunResult {
@@ -121,6 +126,7 @@ export interface ResultMeta {
   testbenchVersion: string;
   mcpVersion: string | null;
   runAt: string;
+  mcpCommit? : string | null;
 }
 
 export interface ResultFile {

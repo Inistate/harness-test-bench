@@ -8,6 +8,45 @@ import type { BenchmarkConfig, IBridge, Model, ModelRunResult, RawMcpTool, Resul
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+// Fetch generation cost from /generations/{id} endpoint, which is more accurate than completion endpoint
+async function fetchGenerationCost(generationIds: Array<string>): Promise<{cost: number, inputTokens: number, outputTokens: number}> {
+  
+  const options = {method: 'GET', headers: {Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`}};
+  let totalCost = 0;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  // slight delay to ensure generation is registered in OpenRouter system
+  // exponential backoff
+  for (const generationId of generationIds) {
+    if (generationId === "unknown") continue;
+    for (let i = 0; i < 4; i++) {
+      await sleep(i == 0? 1000: 500 * 2**i);
+      const url = `https://openrouter.ai/api/v1/generation?id=${generationId}`;
+      const httpResponse = await fetch(url, options);
+      if (!httpResponse.ok) {
+        continue;
+      }
+      let cost = 0;
+      let inputTokens = 0;
+      let outputTokens = 0;
+      const res = await httpResponse.json() as { data?: { total_cost?: number; native_tokens_prompt?: number; native_tokens_completion?: number } };
+      if (res.data?.total_cost !== null) {
+        cost = res.data?.total_cost ?? 0;
+        inputTokens = res.data?.native_tokens_prompt ?? 0;
+        outputTokens = res.data?.native_tokens_completion ?? 0;
+        totalCost += cost;
+        totalInputTokens += inputTokens;
+        totalOutputTokens += outputTokens;
+        break;
+      }
+    }
+  }
+
+  // Implementation for fetching generation cost
+  
+  return { cost: totalCost, inputTokens: totalInputTokens, outputTokens: totalOutputTokens };
+}
+
 function readPackageVersion(pkgPath: string): string | null {
   try {
     const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { version?: string };
@@ -188,6 +227,7 @@ async function runTask(
     type StepUsage = { usage?: { inputTokens?: number; outputTokens?: number } };
     let capturedSteps: StepUsage[] = [];
     const maxSteps = task.maxSteps ?? 12;
+    const generationIds = new Array<string>();
 
     const result = openrouter.callModel({
       model: model.id,
@@ -197,6 +237,18 @@ async function runTask(
       ]),
       tools,
       stopWhen: (ctx) => {
+        // console.log(`Ctx shape:`, ctx);
+        // if (ctx.steps.length > 0) {
+        //   console.log(`Response shape:`, JSON.stringify((ctx.steps[0] as any).response ?? {}), null, 2);
+        // }
+        for (const step of ctx.steps) {
+          const response = step.response 
+          const genId = (response as unknown as { id?: string })?.id;
+          if (genId && !generationIds.includes(genId)) {
+            console.log(`Captured generation ID: ${genId}`);
+            generationIds.push(genId);
+          }
+        }
         capturedSteps = ctx.steps as unknown as StepUsage[];
         return ctx.steps.length >= maxSteps;
       },
@@ -212,21 +264,29 @@ async function runTask(
       })().catch(() => { /* model doesn't support reasoning */ });
     }
 
-    const [text, response] = await Promise.all([
+    const [text, finalResponse] = await Promise.all([
       result.getText(),
       result.getResponse(),
     ]);
 
     const latency = Date.now() - start;
+    console.log(`array length`, generationIds.length);
+    const finalId = (finalResponse as unknown as { id?: string })?.id;
+    if (finalId && !generationIds.includes(finalId)) {
+      console.log(`Captured final generation ID: ${finalId}`);
+      generationIds.push(finalId);
+    }
+    console.log(`array length`, generationIds.length);
+    const resPromise = fetchGenerationCost(generationIds);
 
     // Sum tokens across all steps; fall back to final response.usage for single-step runs
-    const inputTokens = capturedSteps.length > 0
-      ? capturedSteps.reduce((s, step) => s + (step.usage?.inputTokens ?? 0), 0)
-      : (response.usage?.inputTokens ?? 0);
-    const outputTokens = capturedSteps.length > 0
-      ? capturedSteps.reduce((s, step) => s + (step.usage?.outputTokens ?? 0), 0)
-      : (response.usage?.outputTokens ?? 0);
-    const cost = (inputTokens / 1e6) * model.price_in + (outputTokens / 1e6) * model.price_out;
+    // const inputTokens = capturedSteps.length > 0
+    //   ? capturedSteps.reduce((s, step) => s + (step.usage?.inputTokens ?? 0), 0)
+    //   : (response.usage?.inputTokens ?? 0);
+    // const outputTokens = capturedSteps.length > 0
+    //   ? capturedSteps.reduce((s, step) => s + (step.usage?.outputTokens ?? 0), 0)
+    //   : (response.usage?.outputTokens ?? 0);
+    // const cost = (inputTokens / 1e6) * model.price_in + (outputTokens / 1e6) * model.price_out;
 
     const toolCalls = await collectExecutedToolCalls(result);
     const evaluation = task.evaluate(toolCalls, text, assets);
@@ -249,12 +309,11 @@ async function runTask(
       issues: evaluation.issues,
       hallucinated: evaluation.hallucinated,
       latency_ms: latency,
-      input_tokens: inputTokens,
-      output_tokens: outputTokens,
-      cost_usd: cost,
+      cost_usd: null,
       tool_calls: toolCalls.map((t) => t.name),
       tool_call_details: toolCalls,
       response_preview: text?.slice(0, 200),
+      _res_promise: resPromise,
     };
   } catch (e) {
     const err = e as Record<string, unknown>;
@@ -491,6 +550,19 @@ async function runScenarioForModel(
         console.log(`\n    ${warn} Task verify error: ${(e as Error).message}`);
       }
     }
+    
+    let inputTokens = result.input_tokens ?? 0;
+    let outputTokens = result.output_tokens ?? 0;
+    if (result._res_promise) {
+      const resData = await result._res_promise;
+      // console.log(resData);
+      inputTokens = resData.inputTokens;
+      outputTokens = resData.outputTokens;
+      result.cost_usd = resData.cost;
+      result.input_tokens = inputTokens;
+      result.output_tokens = outputTokens;
+      delete result._res_promise;
+    }
 
     const icon = result.success ? tick : cross;
     const costStr = (result.cost_usd ?? 0) > 0 ? `$${result.cost_usd!.toFixed(6)}` : "$0.000000";
@@ -507,9 +579,11 @@ async function runScenarioForModel(
 
     modelResults.tasks[task.id] = result;
     if (result.success) modelResults.score++;
-    modelResults.total_input_tokens  += result.input_tokens  ?? 0;
-    modelResults.total_output_tokens += result.output_tokens ?? 0;
-    modelResults.total_tokens += (result.input_tokens ?? 0) + (result.output_tokens ?? 0);
+
+
+    modelResults.total_input_tokens  += inputTokens;
+    modelResults.total_output_tokens += outputTokens;
+    modelResults.total_tokens += inputTokens + outputTokens;
     modelResults.total_cost   += result.cost_usd ?? 0;
     modelResults.total_tool_calls += result.tool_calls?.length ?? 0;
 
