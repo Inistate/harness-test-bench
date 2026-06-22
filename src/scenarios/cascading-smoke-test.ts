@@ -34,11 +34,8 @@ const scenario: Scenario<ProjectManagementAssets> = {
   name: "All-Tools Smoke Test 2 - Cascading",
   description: "Five-task workflow covering workspace setup, module design, entry management, and file operations",
 
-  setup: async (bridge: IBridge, workspaceId: string): Promise<ProjectManagementAssets> => {
-    const ws = await bridge.callTool("set_workspace", { workspaceId }) as Record<string, unknown>;
-    const workspaceName = String(ws?.name ?? "Inistate");
-    console.log(`    → Workspace: ${workspaceName} (${workspaceId})`);
-    return { workspaceId, workspaceName, pdfName: PDF_NAME };
+  setup: async (_bridge: IBridge, workspaceId: string): Promise<ProjectManagementAssets> => {
+    return { workspaceId, workspaceName: "Inistate", pdfName: PDF_NAME };
   },
 
   // Schema constraints included because some models serialize arrays as {item:[...]} and booleans
@@ -54,6 +51,11 @@ const scenario: Scenario<ProjectManagementAssets> = {
       id: "task_1_workspace_setup",
       name: "Workspace Setup",
       maxSteps: 20,
+      setup: async (bridge: IBridge, assets: ProjectManagementAssets): Promise<void> => {
+        const ws = await bridge.callTool("set_workspace", { workspaceId: assets.workspaceId }) as Record<string, unknown>;
+        assets.workspaceName = String(ws?.name ?? "Inistate");
+        console.log(`    → Workspace: ${assets.workspaceName} (${assets.workspaceId})`);
+      },
       prompt: (assets) =>
         `I'm getting set up in Inistate for project management — can you find my available workspaces ` +
         `and switch me into workspace ${assets.workspaceId}?`,
@@ -238,17 +240,19 @@ const scenario: Scenario<ProjectManagementAssets> = {
         const requiredMissing = !listCall || !historyCall || !transitionCall;
         return { success: !requiredMissing, issues, hallucinated: false };
       },
+      verify: async (bridge: IBridge, assets: ProjectManagementAssets): Promise<{ success: boolean; issues: string[]; hallucinated: boolean }> => {
+        await bridge.callTool("switch_mode", { mode: "configure" });
+        const canvas = await bridge.callTool("get_module_canvas", { module: "Client Projects" }) as Record<string, unknown>;
+        if (!canvas?.error && canvas?.id != null) {
+          await new ApiBridge().deleteModule(assets.workspaceId, assets.workspaceName, canvas.id as string | number);
+        }
+        await bridge.callTool("switch_mode", { mode: "runtime" });
+        return { success: true, issues: [], hallucinated: false };
+      },
     }
   ],
 
-  teardown: async (bridge: IBridge, assets: ProjectManagementAssets): Promise<void> => {
-    await bridge.callTool("switch_mode", { mode: "configure" });
-    const canvas = await bridge.callTool("get_module_canvas", { module: "Client Projects" }) as Record<string, unknown>;
-    if (!canvas?.error && canvas?.id != null) {
-      await new ApiBridge().deleteModule(assets.workspaceId, assets.workspaceName, canvas.id as string | number);
-    }
-    await bridge.callTool("switch_mode", { mode: "runtime" });
-  },
+  teardown: async (): Promise<void> => { /* cleanup handled in task_5 verify */ },
 };
 
 module.exports = scenario;

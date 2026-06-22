@@ -84,156 +84,8 @@ const scenario: Scenario<InvoiceAssets> = {
   name: "Invoice Approval Workflow",
   description: "End-to-end invoice creation, approval routing and overdue checking",
 
-  setup: async (bridge: IBridge, workspaceId: string): Promise<InvoiceAssets> => {
-    console.log("    → Switching to configure mode...");
-    await bridge.callTool("switch_mode", { mode: "configure" });
-    let existingModules = await bridge.callTool("list_modules", { workspaceId });
-
-    // ── Client module ──────────────────────────────────────────────────────────
-    console.log("    → Checking Client module...");
-    const clientSchema = {
-      name: "Client", icon: "🏢",
-      description: "Client records for invoice management",
-      states: [
-        { name: "Active",   color: "#1E6B45", initial: true },
-        { name: "Inactive", color: "#5A6070" },
-      ],
-      information: [
-        { name: "Client Name",    type: "Text",      ai_hint: "Full legal name of the client" },
-        { name: "Email",          type: "Text",      ai_hint: "Primary contact email" },
-        { name: "Payment Terms",  type: "Selection", options: ["Net 15", "Net 30", "Net 60"], ai_hint: "Default payment terms for this client" },
-      ],
-      activities: [
-        { name: "Onboard Client", actor: "human" },
-        { name: "Deactivate",     actor: "human" },
-      ],
-      flows: [
-        { activity: "Onboard Client", from: "Active",   to: "Active"   },
-        { activity: "Deactivate",      from: "Active",   to: "Inactive" },
-      ],
-    };
-
-    let clientModule = findModuleByName(existingModules, "Client");
-    if (clientModule) {
-      console.log("    → Client module already exists");
-    } else {
-      await bridge.callTool("validate_design", { schema: clientSchema, mode: "create" });
-      await bridge.callTool("create_module", { workspaceId: workspaceId, ...clientSchema });
-      existingModules = await bridge.callTool("list_modules", { workspaceId: workspaceId });
-      clientModule = findModuleByName(existingModules, "Client");
-    }
-    const clientModuleId = getCreatedModuleId(clientModule)!;
-    console.log(`    → Client module ready (id: ${clientModuleId})`);
-
-    // ── Invoice module ─────────────────────────────────────────────────────────
-    console.log("    → Checking Invoice module...");
-    const invoiceSchema = {
-      name: "Invoice", icon: "🧾",
-      description: "Invoice lifecycle from creation to payment or escalation",
-      states: [
-        { name: "Draft",            color: "#5A6070", initial: true },
-        { name: "Pending Approval", color: "#A07828" },
-        { name: "Sent",             color: "#2968A8" },
-        { name: "Paid",             color: "#1E6B45" },
-        { name: "Overdue",          color: "#C0392B" },
-        { name: "Void",             color: "#5A6070" },
-      ],
-      information: [
-        { name: "Invoice Number",  type: "Text",      ai_hint: "Auto-generated invoice number e.g. INV-2026-001" },
-        { name: "Client",          type: "Text",      ai_hint: "Client name" },
-        { name: "Description",     type: "MultiText", ai_hint: "Service description" },
-        { name: "Billing Amount",  type: "Currency",  ai_hint: "Amount before tax and discount" },
-        { name: "Tax",             type: "Currency",  ai_hint: "Tax amount (8% SST)" },
-        { name: "Discount",        type: "Currency",  ai_hint: "Discount amount if applicable" },
-        { name: "Total Amount",    type: "Currency",  ai_hint: "Total = Billing Amount + Tax - Discount" },
-        { name: "Issue Date",      type: "Date",      ai_hint: "Invoice issue date in ISO 8601" },
-        { name: "Due Date",        type: "Date",      ai_hint: "Payment due date in ISO 8601" },
-        { name: "Payment Terms",   type: "Selection", options: ["Net 15", "Net 30", "Net 60"], ai_hint: "Payment terms" },
-        { name: "Finance Manager", type: "Text",      ai_hint: "Finance Manager assigned for approval" },
-        { name: "Notes",           type: "MultiText", ai_hint: "Additional notes" },
-      ],
-      activities: [
-        { name: "Generate Invoice", actor: "ai",    ai_hint: "AI generates and validates invoice fields", confidence_threshold: 0.8, fields: ["Invoice Number", "Client", "Billing Amount", "Tax", "Discount", "Total Amount", "Issue Date", "Due Date", "Payment Terms", "Description", "Notes"] },
-        { name: "Approve",          actor: "human" },
-        { name: "Issue to Client",  actor: "human" },
-        { name: "Mark as Paid",     actor: "human" },
-        { name: "Mark Overdue",     actor: "ai",    confidence_threshold: 0.8 },
-        { name: "Void Invoice",     actor: "human" },
-      ],
-      flows: [
-        { activity: "Generate Invoice", from: "Draft",            to: "Pending Approval" },
-        { activity: "Approve",          from: "Pending Approval", to: "Sent"             },
-        { activity: "Issue to Client",  from: "Pending Approval", to: "Sent"             },
-        { activity: "Mark as Paid",     from: "Sent",             to: "Paid"             },
-        { activity: "Mark Overdue",     from: "Sent",             to: "Overdue"          },
-        { activity: "Void Invoice",     from: "Draft",            to: "Void"             },
-      ],
-    };
-
-    let invoiceModule = findModuleByName(existingModules, "Invoice");
-    if (invoiceModule) {
-      console.log("    → Invoice module already exists");
-    } else {
-      await bridge.callTool("validate_design", { schema: invoiceSchema, mode: "create" });
-      await bridge.callTool("create_module", { workspaceId: workspaceId, ...invoiceSchema });
-      existingModules = await bridge.callTool("list_modules", { workspaceId: workspaceId });
-      invoiceModule = findModuleByName(existingModules, "Invoice");
-    }
-    const invoiceModuleId = getCreatedModuleId(invoiceModule)!;
-    console.log(`    → Invoice module ready (id: ${invoiceModuleId})`);
-
-    // ── Switch to runtime ──────────────────────────────────────────────────────
-    console.log("    → Switching to runtime mode...");
-    await bridge.callTool("switch_mode", { mode: "runtime" });
-
-    const ai = { reasoning: "TestBench setup", model: "testbench", confidence: 1.0 };
-
-    // ── Client entry ───────────────────────────────────────────────────────────
-    console.log("    → Creating Pinnacle Ventures client entry...");
-    const clientResult = await bridge.callTool("submit_activity", {
-      module: "Client", activity: "create", workspaceId: workspaceId,
-      input: { "Client Name": "Pinnacle Ventures Sdn Bhd", "Email": "meilin@pinnacleventures.com.my", "Payment Terms": "Net 30" },
-      ai,
-    });
-    const clientId = getCreatedEntryId(clientResult);
-    if (!clientId) throw new Error(`Setup failed: could not extract clientId. Raw: ${JSON.stringify(clientResult)}`);
-    console.log(`    → Client entry created (id: ${clientId})`);
-
-    // ── Task 2 entry ───────────────────────────────────────────────────────────
-    console.log("    → Creating Task 2 invoice entry (Draft)...");
-    const t2Result = await bridge.callTool("submit_activity", {
-      module: "Invoice", activity: "create", workspaceId: workspaceId,
-      input: { "Invoice Number": `BENCH-T2-${Date.now()}`, "Client": "Meridian Logistics Sdn Bhd", "Description": "Software development services Q2 2026", "Billing Amount": 20000, "Tax": 1600, "Total Amount": 21600, "Issue Date": "2026-05-28", "Due Date": "2026-06-27", "Payment Terms": "Net 30", "Finance Manager": "Jesmond Tay" },
-      ai,
-    });
-    const task2EntryId = getCreatedEntryId(t2Result);
-    if (!task2EntryId) throw new Error(`Setup failed: could not extract task2EntryId. Raw: ${JSON.stringify(t2Result)}`);
-    console.log(`    → Task 2 entry created (id: ${task2EntryId})`);
-
-    // ── Task 3 entry ───────────────────────────────────────────────────────────
-    console.log("    → Creating Task 3 invoice entry (Draft)...");
-    const t3Result = await bridge.callTool("submit_activity", {
-      module: "Invoice", activity: "create", workspaceId: workspaceId,
-      input: { "Invoice Number": `BENCH-T3-${Date.now()}`, "Client": "Horizon Group Sdn Bhd", "Description": "Consultancy retainer May 2026", "Billing Amount": 8000, "Tax": 640, "Total Amount": 8640, "Issue Date": "2026-05-28", "Due Date": "2026-06-27", "Payment Terms": "Net 30", "Finance Manager": "Jesmond Tay" },
-      ai,
-    });
-    const task3EntryId = getCreatedEntryId(t3Result);
-    if (!task3EntryId) throw new Error(`Setup failed: could not extract task3EntryId. Raw: ${JSON.stringify(t3Result)}`);
-    console.log(`    → Task 3 entry created (id: ${task3EntryId})`);
-
-    // ── Overdue entry ──────────────────────────────────────────────────────────
-    console.log("    → Creating overdue invoice entry for Pinnacle Ventures...");
-    const overdueResult = await bridge.callTool("submit_activity", {
-      module: "Invoice", activity: "create", workspaceId: workspaceId,
-      input: { "Invoice Number": `BENCH-T4-${Date.now()}`, "Client": "Pinnacle Ventures Sdn Bhd", "Description": "Consulting services — TestBench setup entry", "Billing Amount": 15000, "Tax": 1200, "Total Amount": 16200, "Issue Date": "2026-04-01", "Due Date": "2026-04-30", "Payment Terms": "Net 30", "Finance Manager": "Jesmond Tay" },
-      ai: { ...ai, reasoning: "TestBench setup — overdue invoice for Pinnacle Ventures" },
-    });
-    const overdueEntryId = getCreatedEntryId(overdueResult);
-    if (!overdueEntryId) throw new Error(`Setup failed: could not extract overdueEntryId. Raw: ${JSON.stringify(overdueResult)}`);
-    console.log(`    → Overdue entry created (id: ${overdueEntryId})`);
-
-    await bridge.callTool("set_workspace", { workspaceId });
-    return { workspaceId, invoiceModuleId, clientModuleId, task2EntryId, task3EntryId, overdueEntryId, clientId };
+  setup: async (_bridge: IBridge, workspaceId: string): Promise<InvoiceAssets> => {
+    return { workspaceId, invoiceModuleId: 0, clientModuleId: 0, task2EntryId: 0, task3EntryId: 0, overdueEntryId: 0, clientId: 0 };
   },
 
   system: (assets) => `You are an invoice management AI assistant for Inistate.
@@ -244,6 +96,139 @@ Use the tools to complete the given task. Be concise and efficient.`,
     {
       id: "task_1",
       name: "Create Invoice",
+      setup: async (bridge: IBridge, assets: InvoiceAssets): Promise<void> => {
+        const workspaceId = assets.workspaceId;
+        await bridge.callTool("switch_mode", { mode: "configure" });
+        let existingModules = await bridge.callTool("list_modules", { workspaceId });
+
+        // ── Client module ────────────────────────────────────────────────────────
+        const clientSchema = {
+          name: "Client", icon: "🏢",
+          description: "Client records for invoice management",
+          states: [
+            { name: "Active",   color: "#1E6B45", initial: true },
+            { name: "Inactive", color: "#5A6070" },
+          ],
+          information: [
+            { name: "Client Name",   type: "Text",      ai_hint: "Full legal name of the client" },
+            { name: "Email",         type: "Text",      ai_hint: "Primary contact email" },
+            { name: "Payment Terms", type: "Selection", options: ["Net 15", "Net 30", "Net 60"], ai_hint: "Default payment terms for this client" },
+          ],
+          activities: [
+            { name: "Onboard Client", actor: "human" },
+            { name: "Deactivate",     actor: "human" },
+          ],
+          flows: [
+            { activity: "Onboard Client", from: "Active", to: "Active"   },
+            { activity: "Deactivate",     from: "Active", to: "Inactive" },
+          ],
+        };
+        let clientModule = findModuleByName(existingModules, "Client");
+        if (!clientModule) {
+          await bridge.callTool("validate_design", { schema: clientSchema, mode: "create" });
+          await bridge.callTool("create_module", { workspaceId, ...clientSchema });
+          existingModules = await bridge.callTool("list_modules", { workspaceId });
+          clientModule = findModuleByName(existingModules, "Client");
+        }
+        assets.clientModuleId = getCreatedModuleId(clientModule)!;
+        console.log(`    → Client module ready (id: ${assets.clientModuleId})`);
+
+        // ── Invoice module ───────────────────────────────────────────────────────
+        const invoiceSchema = {
+          name: "Invoice", icon: "🧾",
+          description: "Invoice lifecycle from creation to payment or escalation",
+          states: [
+            { name: "Draft",            color: "#5A6070", initial: true },
+            { name: "Pending Approval", color: "#A07828" },
+            { name: "Sent",             color: "#2968A8" },
+            { name: "Paid",             color: "#1E6B45" },
+            { name: "Overdue",          color: "#C0392B" },
+            { name: "Void",             color: "#5A6070" },
+          ],
+          information: [
+            { name: "Invoice Number",  type: "Text",      ai_hint: "Auto-generated invoice number e.g. INV-2026-001" },
+            { name: "Client",          type: "Text",      ai_hint: "Client name" },
+            { name: "Description",     type: "MultiText", ai_hint: "Service description" },
+            { name: "Billing Amount",  type: "Currency",  ai_hint: "Amount before tax and discount" },
+            { name: "Tax",             type: "Currency",  ai_hint: "Tax amount (8% SST)" },
+            { name: "Discount",        type: "Currency",  ai_hint: "Discount amount if applicable" },
+            { name: "Total Amount",    type: "Currency",  ai_hint: "Total = Billing Amount + Tax - Discount" },
+            { name: "Issue Date",      type: "Date",      ai_hint: "Invoice issue date in ISO 8601" },
+            { name: "Due Date",        type: "Date",      ai_hint: "Payment due date in ISO 8601" },
+            { name: "Payment Terms",   type: "Selection", options: ["Net 15", "Net 30", "Net 60"], ai_hint: "Payment terms" },
+            { name: "Finance Manager", type: "Text",      ai_hint: "Finance Manager assigned for approval" },
+            { name: "Notes",           type: "MultiText", ai_hint: "Additional notes" },
+          ],
+          activities: [
+            { name: "Generate Invoice", actor: "ai",    ai_hint: "AI generates and validates invoice fields", confidence_threshold: 0.8, fields: ["Invoice Number", "Client", "Billing Amount", "Tax", "Discount", "Total Amount", "Issue Date", "Due Date", "Payment Terms", "Description", "Notes"] },
+            { name: "Approve",          actor: "human" },
+            { name: "Issue to Client",  actor: "human" },
+            { name: "Mark as Paid",     actor: "human" },
+            { name: "Mark Overdue",     actor: "ai",    confidence_threshold: 0.8 },
+            { name: "Void Invoice",     actor: "human" },
+          ],
+          flows: [
+            { activity: "Generate Invoice", from: "Draft",            to: "Pending Approval" },
+            { activity: "Approve",          from: "Pending Approval", to: "Sent"             },
+            { activity: "Issue to Client",  from: "Pending Approval", to: "Sent"             },
+            { activity: "Mark as Paid",     from: "Sent",             to: "Paid"             },
+            { activity: "Mark Overdue",     from: "Sent",             to: "Overdue"          },
+            { activity: "Void Invoice",     from: "Draft",            to: "Void"             },
+          ],
+        };
+        let invoiceModule = findModuleByName(existingModules, "Invoice");
+        if (!invoiceModule) {
+          await bridge.callTool("validate_design", { schema: invoiceSchema, mode: "create" });
+          await bridge.callTool("create_module", { workspaceId, ...invoiceSchema });
+          existingModules = await bridge.callTool("list_modules", { workspaceId });
+          invoiceModule = findModuleByName(existingModules, "Invoice");
+        }
+        assets.invoiceModuleId = getCreatedModuleId(invoiceModule)!;
+        console.log(`    → Invoice module ready (id: ${assets.invoiceModuleId})`);
+
+        await bridge.callTool("switch_mode", { mode: "runtime" });
+
+        const ai = { reasoning: "TestBench setup", model: "testbench", confidence: 1.0 };
+
+        // ── Client entry ─────────────────────────────────────────────────────────
+        const clientResult = await bridge.callTool("submit_activity", {
+          module: "Client", activity: "create", workspaceId,
+          input: { "Client Name": "Pinnacle Ventures Sdn Bhd", "Email": "meilin@pinnacleventures.com.my", "Payment Terms": "Net 30" },
+          ai,
+        });
+        assets.clientId = getCreatedEntryId(clientResult)!;
+        if (!assets.clientId) throw new Error(`Setup failed: clientId. Raw: ${JSON.stringify(clientResult)}`);
+
+        // ── Task 2 entry ─────────────────────────────────────────────────────────
+        const t2Result = await bridge.callTool("submit_activity", {
+          module: "Invoice", activity: "create", workspaceId,
+          input: { "Invoice Number": `BENCH-T2-${Date.now()}`, "Client": "Meridian Logistics Sdn Bhd", "Description": "Software development services Q2 2026", "Billing Amount": 20000, "Tax": 1600, "Total Amount": 21600, "Issue Date": "2026-05-28", "Due Date": "2026-06-27", "Payment Terms": "Net 30", "Finance Manager": "Jesmond Tay" },
+          ai,
+        });
+        assets.task2EntryId = getCreatedEntryId(t2Result)!;
+        if (!assets.task2EntryId) throw new Error(`Setup failed: task2EntryId. Raw: ${JSON.stringify(t2Result)}`);
+
+        // ── Task 3 entry ─────────────────────────────────────────────────────────
+        const t3Result = await bridge.callTool("submit_activity", {
+          module: "Invoice", activity: "create", workspaceId,
+          input: { "Invoice Number": `BENCH-T3-${Date.now()}`, "Client": "Horizon Group Sdn Bhd", "Description": "Consultancy retainer May 2026", "Billing Amount": 8000, "Tax": 640, "Total Amount": 8640, "Issue Date": "2026-05-28", "Due Date": "2026-06-27", "Payment Terms": "Net 30", "Finance Manager": "Jesmond Tay" },
+          ai,
+        });
+        assets.task3EntryId = getCreatedEntryId(t3Result)!;
+        if (!assets.task3EntryId) throw new Error(`Setup failed: task3EntryId. Raw: ${JSON.stringify(t3Result)}`);
+
+        // ── Overdue entry ────────────────────────────────────────────────────────
+        const overdueResult = await bridge.callTool("submit_activity", {
+          module: "Invoice", activity: "create", workspaceId,
+          input: { "Invoice Number": `BENCH-T4-${Date.now()}`, "Client": "Pinnacle Ventures Sdn Bhd", "Description": "Consulting services — TestBench setup entry", "Billing Amount": 15000, "Tax": 1200, "Total Amount": 16200, "Issue Date": "2026-04-01", "Due Date": "2026-04-30", "Payment Terms": "Net 30", "Finance Manager": "Jesmond Tay" },
+          ai: { ...ai, reasoning: "TestBench setup — overdue invoice for Pinnacle Ventures" },
+        });
+        assets.overdueEntryId = getCreatedEntryId(overdueResult)!;
+        if (!assets.overdueEntryId) throw new Error(`Setup failed: overdueEntryId. Raw: ${JSON.stringify(overdueResult)}`);
+
+        await bridge.callTool("set_workspace", { workspaceId });
+        console.log(`    → Seeded: client=${assets.clientId}, t2=${assets.task2EntryId}, t3=${assets.task3EntryId}, overdue=${assets.overdueEntryId}`);
+      },
       prompt: (assets) =>
         `Create an invoice for Apex Solutions for $15,000 consulting services. Tax is 8% ($1,200). Total is $16,200. Payment terms Net 30.`,
       evaluate: (toolCalls) => {
@@ -386,34 +371,51 @@ Use the tools to complete the given task. Be concise and efficient.`,
         if (!correctlyIdentified)                  issues.push("Did not correctly identify the presence of overdue invoices for Pinnacle Ventures based on the response");
         return { success: calledListEntries && filteredByClient, issues, hallucinated: !correctlyIdentified };
       },
+      verify: async (bridge: IBridge, assets: InvoiceAssets): Promise<{ success: boolean; issues: string[]; hallucinated: boolean }> => {
+        const ai = { reasoning: "TestBench teardown", model: "testbench", confidence: 1.0 };
+        const entriesToDelete = [
+          assets.task2EntryId   && { module: "Invoice", entryId: assets.task2EntryId },
+          assets.task3EntryId   && { module: "Invoice", entryId: assets.task3EntryId },
+          assets.overdueEntryId && { module: "Invoice", entryId: assets.overdueEntryId },
+          assets.clientId       && { module: "Client",  entryId: assets.clientId },
+        ].filter((x): x is { module: string; entryId: string | number } => Boolean(x));
+
+        for (const { module, entryId } of entriesToDelete) {
+          try {
+            await bridge.callTool("submit_activity", {
+              module, activity: "delete", entryId, workspaceId: assets.workspaceId, confirmed: true, ai,
+            });
+          } catch { /* ignore */ }
+        }
+
+        // Also delete any agent-created Invoice entries (task 1 creates one)
+        const allInvoices = await bridge.callTool("list_entries", { module: "Invoice" }) as Record<string, unknown>;
+        const list = (Array.isArray(allInvoices?.list) ? allInvoices.list : Array.isArray(allInvoices) ? allInvoices : []) as Array<Record<string, unknown>>;
+        for (const entry of list) {
+          const id = entry?.entryId ?? entry?.id;
+          if (!id) continue;
+          try {
+            await bridge.callTool("submit_activity", {
+              module: "Invoice", activity: "delete", entryId: id,
+              workspaceId: assets.workspaceId, confirmed: true, ai,
+            });
+          } catch { /* ignore */ }
+        }
+
+        const modulesToDelete = [assets.invoiceModuleId, assets.clientModuleId].filter(Boolean);
+        if (modulesToDelete.length > 0) {
+          const api = new ApiBridge();
+          for (const moduleId of modulesToDelete) {
+            try { await api.deleteModule(assets.workspaceId, null, moduleId); } catch { /* ignore */ }
+          }
+        }
+
+        return { success: true, issues: [], hallucinated: false };
+      },
     },
   ],
 
-  teardown: async (_bridge: IBridge, assets: InvoiceAssets): Promise<void> => {
-    const entriesToDelete = [
-      assets.task2EntryId   && { module: "Invoice", entryId: assets.task2EntryId },
-      assets.task3EntryId   && { module: "Invoice", entryId: assets.task3EntryId },
-      assets.overdueEntryId && { module: "Invoice", entryId: assets.overdueEntryId },
-      assets.clientId       && { module: "Client",  entryId: assets.clientId },
-    ].filter((x): x is { module: string; entryId: string | number } => Boolean(x));
-
-    for (const { module, entryId } of entriesToDelete) {
-      try {
-        await _bridge.callTool("submit_activity", {
-          module, activity: "delete", entryId, workspaceId: assets.workspaceId, confirmed: true,
-          ai: { reasoning: "TestBench teardown", model: "testbench", confidence: 1.0 },
-        });
-      } catch { /* ignore */ }
-    }
-
-    const modulesToDelete = [assets.invoiceModuleId, assets.clientModuleId].filter(Boolean);
-    if (modulesToDelete.length > 0) {
-      const api = new ApiBridge();
-      for (const moduleId of modulesToDelete) {
-        try { await api.deleteModule(assets.workspaceId, null, moduleId); } catch { /* ignore */ }
-      }
-    }
-  },
+  teardown: async (): Promise<void> => { /* cleanup handled in task_4 verify */ },
 };
 
 module.exports = scenario;

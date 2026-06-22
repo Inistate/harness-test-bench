@@ -170,19 +170,8 @@ const scenario: Scenario<ProjectManagementAssets> = {
   name: "All-Tools Smoke Test 2",
   description: "Five-task workflow covering workspace setup, module design, entry management, and file operations",
 
-  setup: async (bridge: IBridge, workspaceId: string): Promise<ProjectManagementAssets> => {
-    console.log("    → Resolving workspace name...");
-    const workspacesResult = await bridge.callTool("list_workspaces", {});
-    const list = [
-      ...(Array.isArray(workspacesResult) ? workspacesResult as Array<Record<string, unknown>> : []),
-      ...((workspacesResult as Record<string, unknown>)?.workspaces as Array<Record<string, unknown>> ?? []),
-      ...getModuleList(workspacesResult),
-    ];
-    const workspace = list.find((w) => String(w?.id ?? w?.workspaceId ?? "") === String(workspaceId));
-    const workspaceName = String(workspace?.name ?? workspace?.workspaceName ?? "Inistate");
-    await bridge.callTool("set_workspace", { workspaceId });
-    console.log(`    → Workspace: ${workspaceName} (${workspaceId})`);
-    return { workspaceId, workspaceName, pdfName: PDF_NAME };
+  setup: async (_bridge: IBridge, workspaceId: string): Promise<ProjectManagementAssets> => {
+    return { workspaceId, workspaceName: "Inistate", pdfName: PDF_NAME };
   },
 
   // Schema constraints included because some models serialize arrays as {item:[...]} and booleans
@@ -198,6 +187,18 @@ const scenario: Scenario<ProjectManagementAssets> = {
       id: "task_1_workspace_setup",
       name: "Workspace Setup",
       maxSteps: 20,
+      setup: async (bridge: IBridge, assets: ProjectManagementAssets): Promise<void> => {
+        const workspacesResult = await bridge.callTool("list_workspaces", {});
+        const list = [
+          ...(Array.isArray(workspacesResult) ? workspacesResult as Array<Record<string, unknown>> : []),
+          ...((workspacesResult as Record<string, unknown>)?.workspaces as Array<Record<string, unknown>> ?? []),
+          ...getModuleList(workspacesResult),
+        ];
+        const workspace = list.find((w) => String(w?.id ?? w?.workspaceId ?? "") === String(assets.workspaceId));
+        assets.workspaceName = String(workspace?.name ?? workspace?.workspaceName ?? "Inistate");
+        await bridge.callTool("set_workspace", { workspaceId: assets.workspaceId });
+        console.log(`    → Workspace: ${assets.workspaceName} (${assets.workspaceId})`);
+      },
       prompt: (assets) =>
         `I'm getting set up in Inistate for project management — can you find my available workspaces ` +
         `and switch me into workspace ${assets.workspaceId}?`,
@@ -429,14 +430,16 @@ const scenario: Scenario<ProjectManagementAssets> = {
         const requiredMissing = !listCall || !historyCall || !transitionCall;
         return { success: !requiredMissing, issues, hallucinated: false };
       },
+      verify: async (bridge: IBridge, assets: ProjectManagementAssets): Promise<{ success: boolean; issues: string[]; hallucinated: boolean }> => {
+        await bridge.callTool("switch_mode", { mode: "configure" });
+        await deleteAllModulesMatching(bridge, assets, "client project");
+        await bridge.callTool("switch_mode", { mode: "runtime" });
+        return { success: true, issues: [], hallucinated: false };
+      },
     }
   ],
 
-  teardown: async (bridge: IBridge, assets: ProjectManagementAssets): Promise<void> => {
-    await bridge.callTool("switch_mode", { mode: "configure" });
-    await deleteAllModulesMatching(bridge, assets, "client project");
-    await bridge.callTool("switch_mode", { mode: "runtime" });
-  },
+  teardown: async (): Promise<void> => { /* cleanup handled in task_5 verify */ },
 };
 
 module.exports = scenario;
