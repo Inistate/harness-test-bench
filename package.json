@@ -6,6 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "tsx src/index.ts",
+    "ci": "tsx src/ci.ts",
     "typecheck": "tsc --noEmit",
     "visualise": "tsx src/display/results-visualiser.ts",
     "analyse": "tsx src/display/results-analyser.ts",
