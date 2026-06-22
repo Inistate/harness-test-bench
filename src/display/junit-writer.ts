@@ -69,7 +69,7 @@ export function writeJUnit(
         } else if (anyFailed) {
           const msg = escapeXml(allIssues.join("; "));
           testcases.push(
-            `    <testcase name="${tcName}" classname="${tcClass}" time="${tcTime}"><failure message="${msg}"/></testcase>`
+            `    <testcase name="${tcName}" classname="${tcClass}" time="${tcTime}"><failure message="${msg}">${msg}</failure></testcase>`
           );
           totalFailures++;
         } else {
