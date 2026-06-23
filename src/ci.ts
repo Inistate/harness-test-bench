@@ -71,7 +71,7 @@ function readAndValidateEnv(): CiEnv {
     modelIds:     rawModels!.split(",").map((m) => m.trim()).filter(Boolean),
     workspaceId:  rawWorkspace!,
     runs,
-    junitOutput:  process.env.BENCH_JUNIT_OUTPUT?.trim() ?? path.join(__dirname, "../results/junit.xml"),
+    junitOutput:  process.env.BENCH_JUNIT_OUTPUT?.trim() ?? path.join(__dirname, "../results/report.xml"),
     openRouterKey,
     mcpPath,
     mcpEnv: {

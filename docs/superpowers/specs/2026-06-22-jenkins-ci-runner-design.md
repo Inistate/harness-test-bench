@@ -68,7 +68,7 @@ After `runBenchmark()` completes, `ci.ts` writes a JUnit-compatible XML file so 
 
 ### Output path
 
-Default: `results/junit.xml`. Overridable via `BENCH_JUNIT_OUTPUT` env var.
+Default: `results/report.xml`. Overridable via `BENCH_JUNIT_OUTPUT` env var.
 
 ### Mapping
 
@@ -108,7 +108,7 @@ Default: `results/junit.xml`. Overridable via `BENCH_JUNIT_OUTPUT` env var.
 ```groovy
 post {
   always {
-    junit 'results/junit.xml'
+    junit 'results/report.xml'
   }
 }
 ```
@@ -167,7 +167,7 @@ pipeline {
   }
   post {
     always {
-      junit 'results/junit.xml'
+      junit 'results/report.xml'
     }
   }
 }
