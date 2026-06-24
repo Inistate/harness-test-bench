@@ -21,6 +21,16 @@ const cross = `${c.red}☒${c.reset}`;
 const skip  = `${c.yellow}⊘${c.reset}`;
 const dot   = `${c.dim}○${c.reset}`;
 
+const COLORS = [c.green, c.cyan, c.yellow, c.red, c.blue, c.magenta, c.white];
+const COL_WIDTH = 6;
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+function percentile(arr: number[], p: number): number {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const index = Math.floor((p / 100) * (sorted.length - 1));
+  return sorted[index];
+}
+
 function bar(value: number, max: number, width = 20, color = c.green): string {
   const filled = Math.round((value / max) * width);
   const empty  = width - filled;
@@ -70,10 +80,11 @@ function parseResultFile(raw: string): { meta?: ResultFile["meta"]; scenarios: R
 }
 
 function loadResults(filePath?: string): { meta?: ResultFile["meta"]; scenarios: Record<string, ScenarioResult> } {
-  if (filePath) {
-    return parseResultFile(fs.readFileSync(filePath, "utf8"));
-  }
   const dir = path.join(__dirname, "../../results");
+  if (filePath) {
+    const resolved = path.isAbsolute(filePath) ? filePath : path.join(dir, filePath);
+    return parseResultFile(fs.readFileSync(resolved, "utf8"));
+  }
   if (!fs.existsSync(dir)) {
     console.error("No results directory found. Run testbench first.");
     process.exit(1);
@@ -110,6 +121,7 @@ function sortedModelIds(scenarioData: ScenarioResult): string[] {
 
 function drawTaskGrid(scenarioData: ScenarioResult): void {
   const taskIds = new Set<string>();
+  // Collect all unique task IDs across all models and runs
   for (const runs of Object.values(scenarioData.models)) {
     for (const run of runs) {
       if (!run.skipped) Object.keys(run.tasks).forEach((id) => taskIds.add(id));
@@ -118,6 +130,7 @@ function drawTaskGrid(scenarioData: ScenarioResult): void {
   const tasks = Array.from(taskIds);
   if (tasks.length === 0) return;
 
+  // Map task IDs to human-readable names (first occurrence)
   const taskNames: Record<string, string> = {};
   for (const runs of Object.values(scenarioData.models)) {
     for (const run of runs) {
@@ -160,7 +173,8 @@ function drawTaskGrid(scenarioData: ScenarioResult): void {
 
     const avgTaskResult: Record<string, number | "skipped" | null> = {};
     for (const id of tasks) {
-      const results = validRuns.map((r) => r.tasks?.[id]).filter((x): x is TaskResult => !!x);
+      const results = validRuns.map((r) => r.tasks?.[id]).
+        filter((x): x is TaskResult => !!x);
       if (results.length === 0) { avgTaskResult[id] = null; continue; }
       const skippedAll = results.every((r) => r.skipped);
       avgTaskResult[id] = skippedAll
@@ -249,32 +263,44 @@ function drawTokenCostTable(scenarioData: ScenarioResult): void {
 
 function drawLatencyToolTable(scenarioData: ScenarioResult): void {
   console.log(`\n${c.bold}Latency & Tool Calls${c.reset}`);
-  divider(65);
-  console.log(c.dim + "Model".padEnd(22) + "Avg Latency".padEnd(14) + "Total Calls".padEnd(14) + "Calls/Task" + c.reset);
-  divider(65);
+  divider(100);
+  console.log(c.dim + "Model".padEnd(22) + "Avg Latency".padEnd(14) + "P50 Latency".padEnd(14) + "P90 Latency".padEnd(14) + "Total Calls".padEnd(14) + "Calls/Task" + c.reset);
+  divider(100);
 
   for (const modelId of sortedModelIds(scenarioData)) {
     const validRuns = (scenarioData.models[modelId] ?? []).filter((r) => !r.skipped);
     if (validRuns.length === 0) continue;
 
-    let latencySum = 0, latencyCount = 0, toolCallSum = 0, taskCount = 0;
+    let latencySum = 0, latencyCount = 0;
+    let latencyArr: number[] = [];
+    let toolCallSum = 0, taskCount = 0;
     for (const run of validRuns) {
       for (const task of Object.values(run.tasks)) {
         if (!task.skipped) {
-          if (task.latency_ms) { latencySum += task.latency_ms; latencyCount++; }
+          if (task.latency_ms) {
+            latencyArr.push(task.latency_ms); 
+            latencySum += task.latency_ms; latencyCount++;
+          }
           toolCallSum += task.tool_calls?.length ?? 0;
           taskCount++;
         }
       }
     }
+    const p50 = percentile(latencyArr, 50);
+    const p90 = percentile(latencyArr, 90);
+    // console.log(`Model: ${modelId}, P50 Latency: ${p50}ms, P90 Latency: ${p90}ms`);
     const avgLatency   = latencyCount > 0 ? Math.round(latencySum / latencyCount) : 0;
     const totalCalls   = Math.round(toolCallSum / validRuns.length);
     const callsPerTask = taskCount > 0 ? (toolCallSum / taskCount / validRuns.length).toFixed(1) : "0";
     const label        = modelId.split("/").pop()!.slice(0, 21).padEnd(22);
     const latCol       = avgLatency < 5000 ? c.green : avgLatency < 15000 ? c.yellow : c.red;
-    console.log(label + (latCol + `${avgLatency}ms` + c.reset).padEnd(22) + String(totalCalls).padEnd(14) + callsPerTask);
+    console.log(label + 
+      (latCol + `${avgLatency}ms` + c.reset).padEnd(24) + 
+      c.dim + `${p50}ms`.padEnd(14) + `${p90}ms`.padEnd(14) + c.reset +
+      String(totalCalls).padEnd(14) + 
+      callsPerTask);
   }
-  divider(65);
+  divider(100);
 }
 
 function drawPerTaskTokens(scenarioData: ScenarioResult): void {
@@ -428,6 +454,95 @@ function drawHallucinationSummary(scenarioData: ScenarioResult): void {
   divider(65);
 }
 
+function drawLineChart(
+  title: string,
+  modelRuns: Record<string, (ModelRunResult & { runAt?: string })[]>,
+  NUM_ROWS: number = 5
+): void{
+
+  console.log(`\n${c.bold}${title}${c.reset}`);
+  divider(65);
+
+  const models = Object.keys(modelRuns);
+  const maxCols = Math.max(...models.map(modelId => modelRuns[modelId].length));
+  
+  // Build empty grid
+  const grid: Array<Array<string>> = Array.from({ length: NUM_ROWS }, () => Array(maxCols).fill(" "));
+
+  // Place dots
+  models.forEach((modelId, modelIdx) => {
+    const color = COLORS[modelIdx % COLORS.length];
+    modelRuns[modelId].forEach((run, colIdx) => {
+      const percentage = run.score / run.total;
+      const rowIdx = NUM_ROWS - 1 - Math.round(percentage * (NUM_ROWS - 1));
+      grid[rowIdx][colIdx] = color + "●" + c.reset;
+    });
+  });
+
+  // Print grid with y-axis labels
+  grid.forEach((row, idx) => { 
+    const pct = Math.round((1 - idx / (NUM_ROWS - 1)) * 100);
+    const label = `${pct}%`.padStart(4);
+    console.log(`${c.dim}${label} ┤${c.reset} ${row.join(" ".repeat(COL_WIDTH - 1))}`);
+  });
+
+  // Print x-axis
+  console.log(`${c.dim}     └${"─".repeat(maxCols * COL_WIDTH)}${c.reset}`);
+
+  const xLabels = Array.from({ length: maxCols }, (_, i) => `run${i + 1}`.padEnd(COL_WIDTH));
+  console.log(`      ${xLabels.join("")}`);
+  
+  // Print legends
+  models.forEach((modelId, idx) => {
+    const color = COLORS[idx % COLORS.length];
+    console.log(`${color}●${c.reset} ${modelId.split("/").pop()}`);
+  });
+}
+
+export function visualiseModelAcrossScenarios(filesArr: string[]): void {
+
+  // Flatten all runs for this model across scenarios
+  const allRuns = filesArr.flatMap((file) => {
+    // data = {... scenarios: { scenarioId: { scenario: {}, models: { modelId: {tasks: {} } } } } }
+    const data = JSON.parse(fs.readFileSync(path.join("results", file), "utf8")) as ResultFile;
+    return Object.entries(data.scenarios).flatMap(([scenarioId, scenario]) => 
+      Object.entries(scenario.models).flatMap(([modelId, runs]) =>
+        runs.map(run => ({ modelId, scenarioId, runAt: data.meta?.runAt, run })) // Attach scenario and timestamp to each run
+    ))
+  });
+  
+  // Group runs by scenario
+  const byScenarios = allRuns.reduce(
+    (acc, { modelId, scenarioId, runAt, run }) => {
+      if (!acc[scenarioId]) acc[scenarioId] = {};
+      if (!run.skipped){
+        if (!acc[scenarioId][modelId]) {
+          acc[scenarioId][modelId] = [];
+        }
+        acc[scenarioId][modelId].push({ runAt, ...run });
+        
+      }
+      return acc;
+    },
+    {} as Record<string, Record<string, (ModelRunResult & { runAt?: string })[]>>
+  )
+  
+  for (const scenarioId in byScenarios) {
+    for (const runs of Object.values(byScenarios[scenarioId])) {
+      runs.sort((a, b) => {
+        const timeA = a.runAt ? new Date(a.runAt).getTime() : 0;
+        const timeB = b.runAt ? new Date(b.runAt).getTime() : 0;
+        return timeA - timeB;
+      });
+    }
+  }
+  // Visualise
+  // 1. Performance over time (score, cost, latency) across all scenarios - line chart with time on x-axis and score/cost/latency on y-axis, one line per scenario
+  for (const scenarioId in byScenarios) {
+    drawLineChart(`Performance Over Time — Scenario: ${scenarioId}`, byScenarios[scenarioId]);
+  }
+}
+
 export function visualise(filePath?: string): void {
   const { meta, scenarios } = loadResults(filePath);
   console.log("\n");
@@ -463,4 +578,5 @@ export function visualise(filePath?: string): void {
 
 if (require.main === module) {
   visualise(process.argv[2]);
+  visualiseModelAcrossScenarios(process.argv.slice(2));
 }
