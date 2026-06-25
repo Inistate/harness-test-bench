@@ -67,9 +67,19 @@ export function writeJUnit(
           );
           totalSkipped++;
         } else if (anyFailed) {
-          const msg = escapeXml(allIssues.join("; "));
+          const shortMsg = escapeXml(
+            allIssues.length === 1
+              ? allIssues[0]
+              : `${allIssues.length} issues: ${allIssues[0]}`
+          );
+          const toolCalls = taskResults.find((t) => (t.tool_calls?.length ?? 0) > 0)?.tool_calls;
+          const bodyLines = ["ISSUES:", ...allIssues.map((i) => `  ✗ ${i}`)];
+          if (toolCalls && toolCalls.length > 0) {
+            bodyLines.push("", `TOOL CALLS: ${toolCalls.join(" → ")}`);
+          }
+          const body = bodyLines.join("\n");
           testcases.push(
-            `    <testcase name="${tcName}" classname="${tcClass}" time="${tcTime}"><failure message="${msg}">${msg}</failure></testcase>`
+            `    <testcase name="${tcName}" classname="${tcClass}" time="${tcTime}"><failure message="${shortMsg}"><![CDATA[${body}]]></failure></testcase>`
           );
           totalFailures++;
         } else {
