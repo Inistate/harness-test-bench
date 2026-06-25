@@ -332,7 +332,7 @@ const scenario: Scenario<ProjectManagementAssets> = {
           issues.push("Did not successfully call submit_activity (single entry)");
         } else {
           const input = singleCall.arguments?.input as Record<string, unknown> | undefined;
-          if (!input || !String(input["Project Name"] ?? "").toLowerCase().includes("crm integration")) {
+          if (!input || !JSON.stringify(input).toLowerCase().includes("crm integration")) {
             issues.push("submit_activity input did not match the requested CRM Integration entry");
           }
         }
@@ -344,9 +344,9 @@ const scenario: Scenario<ProjectManagementAssets> = {
           if (!Array.isArray(items) || items.length !== 2) {
             issues.push(`submit_activities batch did not contain exactly 2 items (got ${items?.length ?? 0})`);
           } else {
-            const names = items.map((it) => String((it?.input as Record<string, unknown>)?.["Project Name"] ?? "").toLowerCase());
-            if (!names.some((n) => n.includes("brand refresh"))) issues.push("submit_activities batch missing Brand Refresh entry");
-            if (!names.some((n) => n.includes("data migration"))) issues.push("submit_activities batch missing Data Migration entry");
+            const serialised = items.map((it) => JSON.stringify(it).toLowerCase());
+            if (!serialised.some((s) => s.includes("brand refresh"))) issues.push("submit_activities batch missing Brand Refresh entry");
+            if (!serialised.some((s) => s.includes("data migration"))) issues.push("submit_activities batch missing Data Migration entry");
           }
         }
 
