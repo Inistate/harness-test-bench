@@ -117,6 +117,8 @@ const CLIENT_PROJECTS_SCHEMA = {
 };
 
 async function ensureClientProjectsModule(bridge: IBridge, assets: ProjectManagementAssets): Promise<void> {
+  const wsResult = await bridge.callTool("set_workspace", { workspaceId: assets.workspaceId }) as Record<string, unknown>;
+  if (!hasError(wsResult)) assets.workspaceName = String(wsResult?.name ?? assets.workspaceName);
   await bridge.callTool("switch_mode", { mode: "configure" });
   const { name, ...schemaFields } = CLIENT_PROJECTS_SCHEMA;
   await deleteAllModulesMatching(bridge, assets, name);
@@ -171,7 +173,7 @@ const scenario: Scenario<ProjectManagementAssets> = {
   description: "Five-task workflow covering workspace setup, module design, entry management, and file operations",
 
   setup: async (_bridge: IBridge, workspaceId: string): Promise<ProjectManagementAssets> => {
-    return { workspaceId, workspaceName: "Inistate", pdfName: PDF_NAME };
+    return { workspaceId, workspaceName: "", pdfName: PDF_NAME };
   },
 
   // Schema constraints included because some models serialize arrays as {item:[...]} and booleans
