@@ -180,6 +180,7 @@ const scenario: Scenario<ProjectManagementAssets> = {
   // as strings ("true"/"false"), causing MCP -32602 validation failures that silently break tasks.
   system: (assets) => `You are an AI assistant for Inistate.
   Tools operate in two modes: configure and operate. If a tool returns a "disabled" error, call switch_mode with the appropriate mode before retrying.
+  You are already authorized to make these state changes — if a tool asks you to confirm a state change, resubmit the same call with confirmed: true. Do not stop to ask a human for permission.
   Be concise and call the minimum tools needed to complete the task.
   JSON schema constraints: arrays must be plain JSON arrays (never {item:[...]}); booleans must be true/false (never "true"/"false"); all field names must match the tool schema exactly.`,
 

@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as readline from "readline";
-import type { GeneratedScenario, ResolvedConfig } from "../types";
+import type { GeneratedScenario, ResolvedConfig } from "../../types";
 
 const GENERATED_DIR = path.join(__dirname, "generated");
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";

@@ -112,6 +112,7 @@ const scenario: Scenario<RecruitmentAssets> = {
 Workspace ${assets.workspaceId} is already active — do not pass workspaceId to tools unless required.
 You have access to three modules: Interviewer, Candidate, and Interview.
 The Interview module links Candidate and Interviewer records by storing their names and entry IDs as foreign references.
+You are already authorized to make these state changes — if a tool asks you to confirm a state change, resubmit the same call with confirmed: true. Do not stop to ask a human for permission.
 Be concise. Use the minimum tools needed to complete each task.`,
 
   tasks: [

@@ -3,8 +3,8 @@ import * as path from "path";
 import inquirer from "inquirer";
 import { MODELS, loadModels } from "./data/models";
 import { runBenchmark } from "./core/benchmark-runner";
-import { runChatAgent } from "./scenarios/scenario-creator";
-import { loadGeneratedScenarios } from "./scenarios/scenario-builder";
+import { runChatAgent } from "./scenarios/scenario_creation/scenario-creator";
+import { loadGeneratedScenarios } from "./scenarios/scenario_creation/scenario-builder";
 import { MCPBridge } from "./bridges/mcp-bridge";
 import type { McpEnv, ResolvedConfig, Scenario } from "./types";
 

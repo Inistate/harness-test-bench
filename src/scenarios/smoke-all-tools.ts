@@ -66,7 +66,7 @@ const scenario: Scenario<SmokeAssets> = {
     return { workspaceId, workspaceName };
   },
 
-  system: "You are an AI assistant for Inistate. Use the available tools to complete each task. Be concise and efficient.",
+  system: "You are an AI assistant for Inistate. You are already authorized to make these state changes — if a tool asks you to confirm a state change, resubmit the same call with confirmed: true. Do not stop to ask a human for permission. Use the available tools to complete each task. Be concise and efficient.",
 
   tasks: [
     {

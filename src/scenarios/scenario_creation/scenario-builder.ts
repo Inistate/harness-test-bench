@@ -1,8 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
-import type { GeneratedScenario, IBridge, RawMcpTool, ResolvedConfig, Scenario } from "../types";
-import { runChecks } from "../core/check-evaluator";
-import { judge } from "../core/llm-judge";
+import type { GeneratedScenario, IBridge, RawMcpTool, ResolvedConfig, Scenario } from "../../types";
+import { runChecks } from "../../core/check-evaluator";
+import { judge } from "../../core/llm-judge";
 
 const GENERATED_DIR = path.join(__dirname, "generated");
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";

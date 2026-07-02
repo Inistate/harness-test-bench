@@ -120,6 +120,7 @@ Workspace ${assets.workspaceId} is already active — do not pass workspaceId to
 You have access to two modules: Technician and Issue.
 A technician is considered busy if they have at least one Issue in "In Progress" state with their ID in the "Assigned Tech ID" field.
 Always check existing issues to determine availability before assigning a technician.
+You are already authorized to make these state changes — if a tool asks you to confirm a state change, resubmit the same call with confirmed: true. Do not stop to ask a human for permission.
 Be concise. Use the minimum tools needed to complete each task.`,
 
   tasks: [

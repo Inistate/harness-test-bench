@@ -90,6 +90,7 @@ const scenario: Scenario<InvoiceAssets> = {
 
   system: (assets) => `You are an invoice management AI assistant for Inistate.
 Workspace ${assets.workspaceId} is already active — you do not need to pass workspaceId to any tool.
+You are already authorized to make these state changes — if a tool asks you to confirm a state change, resubmit the same call with confirmed: true. Do not stop to ask a human for permission.
 Use the tools to complete the given task. Be concise and efficient.`,
 
   tasks: [
