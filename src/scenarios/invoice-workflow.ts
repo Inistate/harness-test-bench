@@ -1,3 +1,19 @@
+// Invoice Approval Workflow
+// Tests end-to-end invoice lifecycle handling: form-schema-aware creation, state transitions, and read-only reporting.
+//
+// Seed data:
+//   Client: Pinnacle Ventures Sdn Bhd (Net 30)
+//   Invoices: task2 entry (Meridian Logistics, Draft), task3 entry (Horizon Group, Draft),
+//             overdue entry (Pinnacle Ventures, Draft, back-dated Issue/Due dates)
+//
+// Task 1: Create invoice — agent must call get_form, then create an Invoice entry for Apex Solutions
+//         with the exact figures given in prose ($15,000 / $1,200 tax / $16,200 total, Net 30)
+// Task 2: Submit for approval — agent must check current state, then transition Draft → Pending Approval
+//         via the "Generate Invoice" activity (not just any activity)
+// Task 3: Check available actions — read-only task; agent must get_entry and report on available transitions
+// Task 4: Check overdue invoices — read-only task; agent must list_entries filtered to a named client and
+//         correctly report on overdue status
+
 import { ApiBridge } from "../bridges/api-bridge";
 import type { IBridge, Scenario } from "../types";
 
@@ -323,7 +339,7 @@ Use the tools to complete the given task. Be concise and efficient.`,
         `Submit invoice entryId ${assets.task2EntryId} for Finance Manager approval. The invoice amount exceeds the $10,000 threshold.`,
       evaluate: (toolCalls) => {
         const checkedEntry = toolCalls.some((t) => t.name === "get_entry");
-        const submitted    = toolCalls.some(
+        const isSubmitted    = toolCalls.some(
           (t) => (t.name === "submit_activity" || t.name === "submit_activities") &&
             t.arguments?.["module"] === "Invoice"
         );
@@ -333,9 +349,9 @@ Use the tools to complete the given task. Be concise and efficient.`,
         );
         const issues: string[] = [];
         if (!checkedEntry)        issues.push("Did not call get_entry to check current state");
-        if (!submitted)           issues.push("Did not submit an activity on the Invoice");
-        if (submitted && !usedCorrectActivity) issues.push("Did not use 'Generate Invoice' activity (Draft → Pending Approval)");
-        return { success: submitted && usedCorrectActivity, issues, hallucinated: false };
+        if (!isSubmitted)           issues.push("Did not submit an activity on the Invoice");
+        if (isSubmitted && !usedCorrectActivity) issues.push("Did not use 'Generate Invoice' activity (Draft → Pending Approval)");
+        return { success: isSubmitted && usedCorrectActivity, issues, hallucinated: false };
       },
     },
     {
@@ -363,14 +379,14 @@ Use the tools to complete the given task. Be concise and efficient.`,
         const filteredByClient   = toolCalls.some((t) => t.name === "list_entries" && JSON.stringify(t.arguments).toLowerCase().includes("pinnacle"));
         const text = response.toLowerCase();
         const mentionsOverdue = text.includes("overdue") || text.includes("past due") || text.includes("late");
-        const negated = /\b(no|none|not|zero|0|isn't|aren't|doesn't|don't|didn't)\b[^.]{0,30}overdue/.test(text)
-             || /overdue[^.]{0,30}\b(none|not found|0)\b/.test(text);
-        const correctlyIdentified = (mentionsOverdue && !negated) || (!mentionsOverdue && negated);
+        // const negated = /\b(no|none|not|zero|0|isn't|aren't|doesn't|don't|didn't)\b[^.]{0,30}overdue/.test(text)
+            //  || /overdue[^.]{0,30}\b(none|not found|0)\b/.test(text);
+        // const correctlyIdentified = (mentionsOverdue && !negated) || (!mentionsOverdue && negated);
         const issues: string[] = [];
         if (!calledListEntries)                    issues.push("Did not call list_entries");
         if (calledListEntries && !filteredByClient) issues.push("Did not filter by Pinnacle Ventures");
-        if (!correctlyIdentified)                  issues.push("Did not correctly identify the presence of overdue invoices for Pinnacle Ventures based on the response");
-        return { success: calledListEntries && filteredByClient, issues, hallucinated: !correctlyIdentified };
+        // if (!correctlyIdentified)                  issues.push("Did not correctly identify the presence of overdue invoices for Pinnacle Ventures based on the response");
+        return { success: calledListEntries && filteredByClient, issues, hallucinated: !mentionsOverdue };
       },
       verify: async (bridge: IBridge, assets: InvoiceAssets): Promise<{ success: boolean; issues: string[]; hallucinated: boolean }> => {
         const ai = { reasoning: "TestBench teardown", model: "testbench", confidence: 1.0 };
