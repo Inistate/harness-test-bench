@@ -288,7 +288,6 @@ function drawLatencyToolTable(scenarioData: ScenarioResult): void {
     }
     const p50 = percentile(latencyArr, 50);
     const p90 = percentile(latencyArr, 90);
-    // console.log(`Model: ${modelId}, P50 Latency: ${p50}ms, P90 Latency: ${p90}ms`);
     const avgLatency   = latencyCount > 0 ? Math.round(latencySum / latencyCount) : 0;
     const totalCalls   = Math.round(toolCallSum / validRuns.length);
     const callsPerTask = taskCount > 0 ? (toolCallSum / taskCount / validRuns.length).toFixed(1) : "0";
@@ -543,7 +542,7 @@ export function visualiseModelAcrossScenarios(filesArr: string[]): void {
   }
 }
 
-export function visualise(filePath?: string): void {
+export function visualise(filePath?: string, verbose = false): void {
   const { meta, scenarios } = loadResults(filePath);
   console.log("\n");
   header("Inistate TestBench — Results");
@@ -561,11 +560,13 @@ export function visualise(filePath?: string): void {
     drawTaskGrid(scenData);
     drawScoreChart(scenData);
     drawTokenCostTable(scenData);
-    drawPerTaskTokens(scenData);
     drawLatencyToolTable(scenData);
-    drawPerTaskToolCalls(scenData);
     drawHallucinationSummary(scenData);
     drawIssuesSummary(scenData);
+    if (verbose) {
+      drawPerTaskTokens(scenData);
+      drawPerTaskToolCalls(scenData);
+    }
   }
 
   const src = filePath ?? (() => {

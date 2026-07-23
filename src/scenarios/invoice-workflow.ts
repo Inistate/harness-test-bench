@@ -335,8 +335,8 @@ Use the tools to complete the given task. Be concise and efficient.`,
     {
       id: "task_2",
       name: "Submit for Approval",
-      prompt: (assets) =>
-        `Submit invoice entryId ${assets.task2EntryId} for Finance Manager approval. The invoice amount exceeds the $10,000 threshold.`,
+      prompt: () =>
+        `Submit the Meridian Logistics Sdn Bhd invoice for Finance Manager approval. The invoice amount exceeds the $10,000 threshold.`,
       evaluate: (toolCalls) => {
         const checkedEntry = toolCalls.some((t) => t.name === "get_entry");
         const isSubmitted    = toolCalls.some(
@@ -357,8 +357,8 @@ Use the tools to complete the given task. Be concise and efficient.`,
     {
       id: "task_3",
       name: "Check Available Actions",
-      prompt: (assets) =>
-        `Check what actions are currently available for invoice entryId ${assets.task3EntryId}.`,
+      prompt: () =>
+        `Check what actions are currently available for the Horizon Group Sdn Bhd invoice.`,
       evaluate: (toolCalls, response) => {
         const calledGetEntry             = toolCalls.some((t) => t.name === "get_entry");
         const responseMentionsActivities = ["available", "activity", "transition", "action"].some((w) => response.toLowerCase().includes(w));

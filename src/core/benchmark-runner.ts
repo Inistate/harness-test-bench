@@ -5,6 +5,7 @@ import * as path from "path";
 import { execSync } from "child_process";
 import { MCPBridge } from "../bridges/mcp-bridge";
 import type { BenchmarkConfig, IBridge, Model, ModelRunResult, RawMcpTool, ResultFile, Scenario, ScenarioResult, TaskResult, ToolCall } from "../types";
+import { logger } from "./logger";
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -51,7 +52,8 @@ function readPackageVersion(pkgPath: string): string | null {
   try {
     const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { version?: string };
     return pkg.version ?? null;
-  } catch {
+  } catch (e) {
+    logger.debug("Failed to read package version:", pkgPath, (e as Error).message);
     return null;
   }
 }
@@ -60,7 +62,10 @@ function getMcpGitHash(mcpPath: string): string | null {
   try {
     const repoDir = path.dirname(mcpPath);
     return execSync(`git -C "${repoDir}" rev-parse HEAD`, { encoding: "utf8" }).trim();
-  } catch { return null; }
+  } catch (e) {
+    logger.debug("Failed to get MCP git hash:", (e as Error).message);
+    return null;
+  }
 }
 
 function getVersions(mcpPath: string): { testbenchVersion: string; mcpVersion: string | null; mcpCommit: string | null } {
@@ -237,10 +242,6 @@ async function runTask(
       ]),
       tools,
       stopWhen: (ctx) => {
-        // console.log(`Ctx shape:`, ctx);
-        // if (ctx.steps.length > 0) {
-        //   console.log(`Response shape:`, JSON.stringify((ctx.steps[0] as any).response ?? {}), null, 2);
-        // }
         for (const step of ctx.steps) {
           const response = step.response 
           const genId = (response as unknown as { id?: string })?.id;
@@ -261,7 +262,7 @@ async function runTask(
         for await (const delta of result.getReasoningStream()) {
           reasoningChunks.push(delta);
         }
-      })().catch(() => { /* model doesn't support reasoning */ });
+      })().catch((e: unknown) => { logger.error("Reasoning stream failed:", (e as Error).message); });
     }
 
     const [text, finalResponse] = await Promise.all([
@@ -278,15 +279,6 @@ async function runTask(
     }
     console.log(`array length`, generationIds.length);
     const resPromise = fetchGenerationCost(generationIds);
-
-    // Sum tokens across all steps; fall back to final response.usage for single-step runs
-    // const inputTokens = capturedSteps.length > 0
-    //   ? capturedSteps.reduce((s, step) => s + (step.usage?.inputTokens ?? 0), 0)
-    //   : (response.usage?.inputTokens ?? 0);
-    // const outputTokens = capturedSteps.length > 0
-    //   ? capturedSteps.reduce((s, step) => s + (step.usage?.outputTokens ?? 0), 0)
-    //   : (response.usage?.outputTokens ?? 0);
-    // const cost = (inputTokens / 1e6) * model.price_in + (outputTokens / 1e6) * model.price_out;
 
     const toolCalls = await collectExecutedToolCalls(result);
     const evaluation = task.evaluate(toolCalls, text, assets);
@@ -555,7 +547,6 @@ async function runScenarioForModel(
     let outputTokens = result.output_tokens ?? 0;
     if (result._res_promise) {
       const resData = await result._res_promise;
-      // console.log(resData);
       inputTokens = resData.inputTokens;
       outputTokens = resData.outputTokens;
       result.cost_usd = resData.cost;
@@ -607,8 +598,9 @@ async function runScenarioForModel(
 }
 
 // ─── Main runner ───────────────────────────────────────────────────────────────
+/** Run all scenarios against the given models, printing live progress and saving results. */
 export async function runBenchmark(config: BenchmarkConfig): Promise<Record<string, ScenarioResult>> {
-  const { scenarios, models, runs, mcpPath, mcpEnv, openRouterKey, logReasoning = false, scenarioWorkspaces } = config;
+  const { scenarios, models, runs, mcpPath, mcpEnv, openRouterKey, logReasoning = false, verbose = false, scenarioWorkspaces } = config;
   const localBaseUrl = process.env.LOCAL_BASE_URL;
   const openrouter = new OpenRouter({
     apiKey: openRouterKey || process.env.OPENROUTER_API_KEY || "local",
@@ -742,8 +734,8 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<Record<stri
   console.log(`\nResults saved → ${outPath}`);
 
   try {
-    const { visualise } = require("../display/results-visualiser") as { visualise: (p: string) => void };
-    visualise(outPath);
+    const { visualise } = require("../display/results-visualiser") as { visualise: (p: string, v?: boolean) => void };
+    visualise(outPath, verbose);
   } catch {
     // visualise is optional
   }

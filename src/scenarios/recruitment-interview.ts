@@ -256,9 +256,8 @@ Be concise. Use the minimum tools needed to complete each task.`,
         console.log(`    → Seeded: Alice=${assets.aliceId}, Bob=${assets.bobId}, Carol=${assets.carolId}, candidate=${assets.candidateId}`);
       },
       prompt: (assets) =>
-        `Schedule an interview for candidate Jamie Chen (entry ID: ${assets.candidateId}) ` +
+        `Schedule an interview for candidate Jamie Chen ` +
         `at ${assets.interviewSlot}. ` +
-        // `There are three available interviewers: Alice Tan (ID: ${assets.aliceId}), Bob Lim (ID: ${assets.bobId}), and Carol Wong (ID: ${assets.carolId}). ` +
         `Check the existing interview schedule to make sure you pick an interviewer who doesn't already have an interview at that time. ` +
         `Create the Interview entry with the correct interviewer linked.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult => {
@@ -357,7 +356,7 @@ Be concise. Use the minimum tools needed to complete each task.`,
         }
       },
       prompt: (assets) =>
-        `The interview for Jamie Chen (candidate ID: ${assets.candidateId}) has been confirmed. ` +
+        `The interview for Jamie Chen has been confirmed. ` +
         `Transition the candidate's status to "Interview Scheduled".` +
         `Then update the candidate's Notes field with a notification message letting Jamie know the interview is confirmed for ${assets.interviewSlot} with Carol Wong from Product.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult => {
@@ -431,10 +430,10 @@ Be concise. Use the minimum tools needed to complete each task.`,
           });
         }
       },
-      prompt: (assets) =>
+      prompt: () =>
         `Before the interview begins, pull together a briefing. ` +
-        `Look up the full details of the interviewer Carol Wong (ID: ${assets.carolId}) from the Interviewer module, ` +
-        `and the full profile of candidate Jamie Chen (ID: ${assets.candidateId}) from the Candidate module. ` +
+        `Look up the full details of the interviewer Carol Wong from the Interviewer module, ` +
+        `and the full profile of candidate Jamie Chen from the Candidate module. ` +
         `Summarise both — department and email for the interviewer, role and current status for the candidate.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult => {
         const issues: string[] = [];

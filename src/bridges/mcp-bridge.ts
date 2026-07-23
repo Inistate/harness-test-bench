@@ -4,6 +4,7 @@ import { tool } from "@openrouter/agent";
 import type { Tool } from "@openrouter/agent";
 import { z } from "zod";
 import type { IBridge, RawMcpTool } from "../types";
+import { logger } from "../core/logger";
 
 interface McpToolSchema {
   type?: string;
@@ -22,6 +23,7 @@ interface McpCallResult {
   content?: Array<{ type: string; text?: string }>;
 }
 
+/** Bridge that spawns the Inistate MCP server and converts its tools for use with OpenRouter Agent SDK. */
 export class MCPBridge implements IBridge {
   private mcpPath: string;
   private mcpEnv: Record<string, string>;
@@ -35,6 +37,7 @@ export class MCPBridge implements IBridge {
     this.mcpEnv = mcpEnv;
   }
 
+  /** Connect to the MCP server and return converted agent tools. */
   async connect(): Promise<Tool[]> {
     this.transport = new StdioClientTransport({
       command: process.execPath,
@@ -102,6 +105,7 @@ export class MCPBridge implements IBridge {
               return { result: text };
             }
           } catch (e) {
+            logger.error(`Tool call failed: ${mcpTool.name}`, (e as Error).message);
             return { error: (e as Error).message };
           }
         },
@@ -109,6 +113,7 @@ export class MCPBridge implements IBridge {
     });
   }
 
+  /** Execute a named MCP tool with the given arguments. */
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     const result = await this.client!.callTool({ name, arguments: args }) as McpCallResult;
     const text = result.content
@@ -122,6 +127,7 @@ export class MCPBridge implements IBridge {
     }
   }
 
+  /** Shut down the MCP server connection. */
   async disconnect(): Promise<void> {
     if (this.client) {
       await this.client.close();

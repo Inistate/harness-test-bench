@@ -3,6 +3,7 @@
  * Reads auth from the same env vars as the MCP server (INISTATE_API_TOKEN,
  * INISTATE_API_URL), so no extra configuration is needed.
  */
+/** Direct HTTP client for Inistate API endpoints not exposed via MCP. */
 export class ApiBridge {
   private baseUrl: string;
   private authHeader: string | null;
@@ -33,6 +34,7 @@ export class ApiBridge {
     return h;
   }
 
+  /** Send a POST request to the Inistate API. */
   async post(
     path: string,
     body: unknown,

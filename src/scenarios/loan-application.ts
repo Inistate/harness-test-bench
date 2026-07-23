@@ -289,9 +289,9 @@ Be concise. Use the minimum tools needed.`,
         await bridge.callTool("set_workspace", { workspaceId: assets.workspaceId });
         console.log(`    → Seeded: applicant=${assets.task1ApplicantId}, loan=${assets.task1LoanId}`);
       },
-      prompt: (assets) =>
-        `A new loan application has come in (LoanApplication ID: ${assets.task1LoanId}). ` +
-        `Look up the linked Applicant record to assess their credit profile, then process the application according to our branching policy. ` +
+      prompt: () =>
+        `A new loan application has come in for Marcus Webb. ` +
+        `Find the application, look up the linked Applicant record to assess their credit profile, then process the application according to our branching policy. ` +
         `Make sure to set the appropriate fields for whichever branch you take.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult =>
         evaluateBranch(toolCalls, assets, assets?.task1ApplicantId ?? 0, assets?.task1LoanId ?? 0, "Rejected"),
@@ -324,9 +324,9 @@ Be concise. Use the minimum tools needed.`,
         await bridge.callTool("set_workspace", { workspaceId: assets.workspaceId });
         console.log(`    → Seeded: applicant=${assets.task2ApplicantId}, loan=${assets.task2LoanId}`);
       },
-      prompt: (assets) =>
-        `A new loan application has come in (LoanApplication ID: ${assets.task2LoanId}). ` +
-        `Look up the linked Applicant record to assess their credit profile, then process the application according to our branching policy. ` +
+      prompt: () =>
+        `A new loan application has come in for Priya Nair. ` +
+        `Find the application, look up the linked Applicant record to assess their credit profile, then process the application according to our branching policy. ` +
         `Make sure to set the appropriate fields for whichever branch you take.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult =>
         evaluateBranch(toolCalls, assets, assets?.task2ApplicantId ?? 0, assets?.task2LoanId ?? 0, "Under Review"),
@@ -359,9 +359,9 @@ Be concise. Use the minimum tools needed.`,
         await bridge.callTool("set_workspace", { workspaceId: assets.workspaceId });
         console.log(`    → Seeded: applicant=${assets.task3ApplicantId}, loan=${assets.task3LoanId}`);
       },
-      prompt: (assets) =>
-        `A new loan application has come in (LoanApplication ID: ${assets.task3LoanId}). ` +
-        `Look up the linked Applicant record to assess their credit profile, then process the application according to our branching policy. ` +
+      prompt: () =>
+        `A new loan application has come in for Elena Vasquez. ` +
+        `Find the application, look up the linked Applicant record to assess their credit profile, then process the application according to our branching policy. ` +
         `Make sure to set the appropriate fields for whichever branch you take.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult =>
         evaluateBranch(toolCalls, assets, assets?.task3ApplicantId ?? 0, assets?.task3LoanId ?? 0, "Approved"),
@@ -394,9 +394,9 @@ Be concise. Use the minimum tools needed.`,
         await bridge.callTool("set_workspace", { workspaceId: assets.workspaceId });
         console.log(`    → Seeded: applicant=${assets.task4ApplicantId}, loan=${assets.task4LoanId}`);
       },
-      prompt: (assets) =>
-        `A new loan application has come in (LoanApplication ID: ${assets.task4LoanId}). ` +
-        `Look up the linked Applicant record to assess their credit profile, then process the application according to our branching policy. ` +
+      prompt: () =>
+        `A new loan application has come in for David Okafor. ` +
+        `Find the application, look up the linked Applicant record to assess their credit profile, then process the application according to our branching policy. ` +
         `Make sure to set the appropriate fields for whichever branch you take.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult =>
         // Trap: score=680 looks approvable but active_loans=3 disqualifies from Approve — must go Under Review

@@ -25,31 +25,40 @@ app02.apps.inistate.com API
 ### How It Works Step by Step
 
 1. **Spawn MCP server as child process**
+
    ```
    node /path/to/inistate-mcp/build/index.js
    ```
+
    The MCP server communicates over stdio using JSON-RPC.
 
 2. **List tools from MCP server**
+
    ```
    session.list_tools() → returns MCP tool definitions
    ```
+
    Each tool has a name, description, and inputSchema (JSON Schema format).
 
-3. **Convert MCP tools → OpenRouter Agent SDK `tool()` format**
+3. **Convert MCP tools → OpenRouter Agent SDK** `tool()` **format**
+
    ```
    MCP inputSchema (JSON Schema) → Zod schema
    MCP execute → forwards call to session.call_tool()
    ```
+
    The model sees OpenRouter-compatible tool definitions but every execution hits the real Inistate API.
 
 4. **Model makes tool calls via OpenRouter**
+
    ```
    callModel({ model, messages, tools }) → model returns tool_calls
    ```
+
    The Agent SDK automatically executes the tools, feeds results back, and loops until done.
 
 5. **Tool execution flows back to MCP**
+
    ```
    tool.execute(params) → session.call_tool(name, params) → Inistate API → result
    ```
@@ -63,6 +72,7 @@ app02.apps.inistate.com API
 ### Auth Format
 
 The Inistate MCP server uses `fsk` token format (not `Bearer`):
+
 ```
 Authorization: fsk YOUR_TOKEN
 ```
@@ -83,6 +93,7 @@ src/
     benchmark-runner.ts             ← Main benchmark loop
     llm-judge.ts                    ← LLM judge for schema-defined scenarios
     check-evaluator.ts              ← Evaluator for check-based assertions
+    logger.ts                       ← Debug/info/warn/error logger gated by LOG_LEVEL
   bridges/
     mcp-bridge.ts                   ← Spawns MCP, converts tools, bridges calls
     api-bridge.ts                   ← Direct Inistate API calls (module CRUD)
@@ -112,15 +123,15 @@ plan.md                             ← This file
 
 Each scenario is a self-contained end-to-end workflow. The key pattern:
 
-- **Global `setup`** — returns a minimal assets shell (just `workspaceId`). Does no API calls.
-- **Task 1 `setup`** — creates modules, seeds entries, mutates the shared `assets` object with all IDs needed by later tasks
-- **Per-task `setup`** — optional; ensures required state exists before each task runs (prevents cascading failures if a previous task failed)
-- **`system`** — constant system prompt across all models
-- **`tasks`** — array of tasks, each with `prompt`, `evaluate`, optional `setup`, optional `verify`
-- **`evaluate`** — checks tool calls and response immediately after the agent finishes
-- **`verify`** — calls the real API after evaluate to confirm state was actually written correctly
-- **Last task `verify`** — handles full teardown (deletes entries and modules), so each model run starts with clean state
-- **Global `teardown`** — no-op (cleanup is handled in last task `verify`)
+- **Global** `setup` — returns a minimal assets shell (just `workspaceId`). Does no API calls.
+- **Task 1** `setup` — creates modules, seeds entries, mutates the shared `assets` object with all IDs needed by later tasks
+- **Per-task** `setup` — optional; ensures required state exists before each task runs (prevents cascading failures if a previous task failed)
+- `system` — constant system prompt across all models
+- `tasks` — array of tasks, each with `prompt`, `evaluate`, optional `setup`, optional `verify`
+- `evaluate` — checks tool calls and response immediately after the agent finishes
+- `verify` — calls the real API after evaluate to confirm state was actually written correctly
+- **Last task** `verify` — handles full teardown (deletes entries and modules), so each model run starts with clean state
+- **Global** `teardown` — no-op (cleanup is handled in last task `verify`)
 
 ```typescript
 const scenario: Scenario<MyAssets> = {
@@ -159,11 +170,16 @@ const scenario: Scenario<MyAssets> = {
 ### 2. Current Scenarios
 
 | Scenario | ID | Tasks | What It Tests |
-|---|---|---|---|
-| Invoice Approval Workflow | `invoice_workflow` | 4 | Invoice creation, state transitions, overdue detection |
+| --- | --- | --- | --- |
+| Invoice Approval Workflow | `invoice_workflow` | 4 | Invoice creation, approval routing, overdue detection |
+| Field Service Dispatch | `field_service_dispatch` | 4 | Technician type matching, availability checking via linked issues |
+| Recruitment Interview | `recruitment_interview` | 4 | Cross-module scheduling, clash detection, foreign ref navigation |
+| Loan Application | `loan_application` | 4 | Compound conditional branching via cross-module foreign refs |
+| Vendor Selection | `vendor_selection` | 4 | Multi-option comparative evaluation with weighted decision gates |
+| Inventory Reorder Cascade | `inventory_reorder` | 4 | Cross-module aggregation + cascading writes to variable row sets |
 | All-Tools Smoke Test (Independent) | `smoke_all_tools_2` | 5 | All MCP tools, each task independent |
 | All-Tools Smoke Test (Cascading) | `smoke_all_tools_2_cascading` | 5 | All MCP tools, tasks build on each other |
-| Recruitment Interview Workflow | `recruitment_interview` | 4 | Cross-module tool calls, clash detection, foreign ref navigation |
+| All-Tools Smoke Test (Full) | `smoke_all_tools` | 21 | Every MCP tool exercised once across configure and runtime modes |
 
 ### 3. Models
 
@@ -176,6 +192,7 @@ Local models (served via `mlx_lm`) are also supported — set `local: true` in `
 ### 4. MCP Bridge
 
 `mcp-bridge.ts` handles:
+
 - Spawning the Inistate MCP server process
 - Converting MCP tool definitions to OpenRouter Agent SDK `tool()` format
 - Forwarding tool calls from the model back to the MCP server
@@ -184,6 +201,7 @@ Local models (served via `mlx_lm`) are also supported — set `local: true` in `
 ### 5. Runner
 
 `benchmark-runner.ts` orchestrates:
+
 - Connecting MCP
 - Running global scenario setup
 - For each model × each task × each run: calling the model, evaluating the result, running verify
@@ -193,6 +211,7 @@ Local models (served via `mlx_lm`) are also supported — set `local: true` in `
 ### 6. Visualiser & Analyser
 
 `results-visualiser.ts` renders results in the terminal with:
+
 - **Task tickbox grid** — ☑/☒ per model per task
 - **Score bar chart** — horizontal bars with color coding
 - **Token & cost table** — avg tokens in/out and cost per model
@@ -206,7 +225,7 @@ Local models (served via `mlx_lm`) are also supported — set `local: true` in `
 ## Metrics
 
 | Metric | How Measured |
-|---|---|
+| --- | --- |
 | Accuracy | `evaluate()` per task returns `success: true/false` |
 | Verify | `verify()` per task calls real API post-agent to confirm state |
 | Input tokens | Fetched per-generation from OpenRouter API |
@@ -220,10 +239,10 @@ Local models (served via `mlx_lm`) are also supported — set `local: true` in `
 ## Evaluation: Three Levels
 
 | Level | Where | What |
-|---|---|---|
-| 1. Tool call check | `evaluate()` | Did the agent call the right tools with the right arguments? |
-| 2. Response check | `evaluate()` | Did the response mention the right things? |
-| 3. Real API verify | `verify()` | Did the API actually record the correct state? |
+| --- | --- | --- |
+| 1\. Tool call check | `evaluate()` | Did the agent call the right tools with the right arguments? |
+| 2\. Response check | `evaluate()` | Did the response mention the right things? |
+| 3\. Real API verify | `verify()` | Did the API actually record the correct state? |
 
 Level 3 is the strongest signal — it catches cases where the agent called the right tool but with wrong data, or where the API rejected the call silently.
 
@@ -232,12 +251,14 @@ Level 3 is the strongest signal — it catches cases where the agent called the 
 ## Inistate API Notes
 
 ### Auth
+
 ```
 Authorization: fsk TOKEN
 wsid: WORKSPACE_ID   ← header, not body
 ```
 
 ### Key Endpoints
+
 ```
 POST /api/mcp/activity/bulk   ← submit_activities
 POST /api/mcp/entry           ← get_entry
@@ -247,11 +268,12 @@ POST /api/mcp/entry/history   ← get_entry_history
 ```
 
 ### Token Format
-Token format: `uuid:secret` (e.g. `f600005f-f0e8-4d65-91dd-c95fd29c6eb2:TOKEN`)
-Tokens expire — always fetch fresh from `INISTATE_API_TOKEN` env var.
+
+Token format: `uuid:secret` (e.g. `f600005f-f0e8-4d65-91dd-c95fd29c6eb2:TOKEN`) Tokens expire — always fetch fresh from `INISTATE_API_TOKEN` env var.
 
 ### Workspace
-- **Test (2248)** — primary test workspace
+
+- **Test (11481)** — primary test workspace
 
 ---
 

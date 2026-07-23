@@ -27,6 +27,7 @@ export interface BenchmarkConfig {
   mcpEnv: McpEnv;
   openRouterKey: string;
   logReasoning?: boolean;
+  verbose?: boolean;
   scenarioWorkspaces: Record<string, string>;
 }
 

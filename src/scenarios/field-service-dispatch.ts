@@ -319,8 +319,8 @@ Be concise. Use the minimum tools needed to complete each task.`,
         assets.task2IssueId = getCreatedEntryId(plumbingResult)!;
         console.log(`    → Seeded plumbing issue=${assets.task2IssueId}`);
       },
-      prompt: (assets) =>
-        `A new plumbing issue has come in: "Burst pipe in Level 3 Bathroom" (Issue ID: ${assets.task2IssueId}), Priority: High. ` +
+      prompt: () =>
+        `A new plumbing issue has come in: "Burst pipe in Level 3 Bathroom", Priority: High. ` +
         `Find a free Plumbing technician and assign the issue to them. ` +
         `A technician is considered busy if they have an active issue (In Progress) linked to them. ` +
         `Check existing issues to determine availability before assigning.`,
@@ -432,10 +432,10 @@ Be concise. Use the minimum tools needed to complete each task.`,
         assets.task3IssueId = getCreatedEntryId(newIssueResult)!;
         console.log(`    → Seeded: Alan's active issue=${assets.alanActiveIssueId}, new electrical issue=${assets.task3IssueId}`);
       },
-      prompt: (assets) =>
-        `Alan's active issue "Faulty circuit breaker — Block A" (Issue ID: ${assets.alanActiveIssueId}) has been resolved. ` +
+      prompt: () =>
+        `Alan's active issue "Faulty circuit breaker — Block A" has been resolved. ` +
         `Mark it as Resolved using the Resolve activity. ` +
-        `Then assign the new electrical issue "Tripped breaker in Gym" (Issue ID: ${assets.task3IssueId}) to a free Electrical technician. ` +
+        `Then assign the new electrical issue "Tripped breaker in Gym" to a free Electrical technician. ` +
         `Check active issues to determine availability before assigning.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult => {
         const issues: string[] = [];
@@ -530,8 +530,8 @@ Be concise. Use the minimum tools needed to complete each task.`,
         assets.task4IssueId = getCreatedEntryId(hvacResult)!;
         console.log(`    → Seeded HVAC issue=${assets.task4IssueId}`);
       },
-      prompt: (assets) =>
-        `A new HVAC issue has come in: "AC unit failure in Board Room" (Issue ID: ${assets.task4IssueId}), Priority: High. ` +
+      prompt: () =>
+        `A new HVAC issue has come in: "AC unit failure in Board Room", Priority: High. ` +
         `Assign it to a free HVAC technician. ` +
         `A technician is considered busy if they have an active issue (In Progress) linked to them. ` +
         `After assigning, list all currently In Progress issues and summarise who is working on what.`,

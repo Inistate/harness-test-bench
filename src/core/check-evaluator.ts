@@ -6,6 +6,7 @@ import type { EvaluationResult, ToolCall } from "../types";
 //   arg:<tool>.<arg>=<val>  argument on any call to <tool> matches <val>
 //   success:<tool>          tool was called and at least one call returned without error
 
+/** Run a list of declarative check assertions against captured tool calls. */
 export function runChecks(checks: string[], toolCalls: ToolCall[]): EvaluationResult {
   const issues: string[] = [];
   let hallucinated = false;

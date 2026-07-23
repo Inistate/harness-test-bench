@@ -254,8 +254,9 @@ async function main(): Promise<void> {
   const runs = Number.parseInt(runsInput, 10);
 
   const logReasoning = process.env.LOG_REASONING === "1" || process.env.LOG_REASONING === "true";
+  const verbose = process.argv.includes("--verbose");
 
-  console.log(`\n📋 ${selectedScenarios.length} scenario(s) | 🤖 ${selectedModels.length} model(s) | 🔄 ${runs} run(s)${logReasoning ? " | 🧠 reasoning on" : ""}`);
+  console.log(`\n📋 ${selectedScenarios.length} scenario(s) | 🤖 ${selectedModels.length} model(s) | 🔄 ${runs} run(s)${logReasoning ? " | 🧠 reasoning on" : ""}${verbose ? " | 📝 verbose" : ""}`);
   console.log(`🔧 MCP: ${config.mcpPath}\n`);
 
   await runBenchmark({
@@ -266,6 +267,7 @@ async function main(): Promise<void> {
     mcpEnv: config.mcpEnv,
     openRouterKey: config.openRouterKey,
     logReasoning,
+    verbose,
     scenarioWorkspaces,
   });
 }

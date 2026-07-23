@@ -281,8 +281,8 @@ Be concise. Use the minimum tools needed.`,
         await bridge.callTool("set_workspace", { workspaceId: assets.workspaceId });
         console.log(`    → Seeded: product=${seeded.productId}, inv1=[${seeded.inv1Ids}], inv2=[${seeded.inv2Ids}]`);
       },
-      prompt: (assets) =>
-        `Hey — can you check on Widget A (Product ID ${assets.task1ProductId}) for me? ` +
+      prompt: () =>
+        `Hey — can you check on Widget A for me? ` +
         `Pull the stock numbers from both inventory sheets and see how many we've actually got left in total. ` +
         `If we're running low, flag it for reorder and make sure the warehouse records on both sheets get updated too, not just the product itself. Thanks!`,
       evaluate: (toolCalls, _response, assets): EvaluationResult =>
@@ -304,8 +304,8 @@ Be concise. Use the minimum tools needed.`,
         await bridge.callTool("set_workspace", { workspaceId: assets.workspaceId });
         console.log(`    → Seeded: product=${seeded.productId}, inv1=[${seeded.inv1Ids}], inv2=[${seeded.inv2Ids}]`);
       },
-      prompt: (assets) =>
-        `Quick check for you — Widget B (Product ID ${assets.task2ProductId}). ` +
+      prompt: () =>
+        `Quick check for you — Widget B. ` +
         `Look across both inventory sheets and tell me the total we've got. Only flag it for reorder if we're actually running low. Let me know what you find.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult =>
         evaluateCascade(toolCalls, assets?.task2ProductId ?? 0, assets?.task2Inv1Ids ?? [], assets?.task2Inv2Ids ?? [], "No Change"),
@@ -326,8 +326,8 @@ Be concise. Use the minimum tools needed.`,
         await bridge.callTool("set_workspace", { workspaceId: assets.workspaceId });
         console.log(`    → Seeded: product=${seeded.productId}, inv1=[${seeded.inv1Ids}], inv2=[${seeded.inv2Ids}]`);
       },
-      prompt: (assets) =>
-        `Can you run the numbers on Widget C (Product ID ${assets.task3ProductId})? ` +
+      prompt: () =>
+        `Can you run the numbers on Widget C? ` +
         `It's spread across a few rows on both sheets, so add it all up before deciding. If the total's below our reorder line, flag the product and every one of those stock rows so the team knows.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult =>
         evaluateCascade(toolCalls, assets?.task3ProductId ?? 0, assets?.task3Inv1Ids ?? [], assets?.task3Inv2Ids ?? [], "Reorder"),
@@ -348,8 +348,8 @@ Be concise. Use the minimum tools needed.`,
         await bridge.callTool("set_workspace", { workspaceId: assets.workspaceId });
         console.log(`    → Seeded: product=${seeded.productId}, inv1=[${seeded.inv1Ids}], inv2=[${seeded.inv2Ids}]`);
       },
-      prompt: (assets) =>
-        `One more for you — Widget D (Product ID ${assets.task4ProductId}). ` +
+      prompt: () =>
+        `One more for you — Widget D. ` +
         `Check both sheets and total it up before you decide anything — don't flag it just off one sheet looking low. Only reorder if the combined total is actually under our line.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult =>
         evaluateCascade(toolCalls, assets?.task4ProductId ?? 0, assets?.task4Inv1Ids ?? [], assets?.task4Inv2Ids ?? [], "No Change"),

@@ -3,6 +3,7 @@ import type { EvaluationResult, ToolCall } from "../types";
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 const JUDGE_MODEL = "google/gemini-flash-1.5";
 
+/** Evaluate a model's task execution against given criteria using an LLM judge. */
 export async function judge(
   taskName: string,
   taskPrompt: string,

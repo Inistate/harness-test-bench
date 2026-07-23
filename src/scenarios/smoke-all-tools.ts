@@ -1,3 +1,6 @@
+// All-Tools Smoke Test (Full)
+// Exercises every MCP tool exactly once across configure and runtime modes (21 tasks).
+
 import { ApiBridge } from "../bridges/api-bridge";
 import type { IBridge, Scenario } from "../types";
 
