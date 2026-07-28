@@ -230,27 +230,49 @@ Be concise. Use the minimum tools needed to complete each task.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult => {
         const issues: string[] = [];
 
-        // Level 1: required tool calls
+        // Layer 1: required tool calls
         const checkedIssues = calledSuccessfully(toolCalls, "list_entries") &&
           toolCalls.some((t) => t.name === "list_entries" && JSON.stringify(t.arguments).toLowerCase().includes("issue"));
-        if (!checkedIssues) issues.push("Did not call list_entries on Issue module to check technician availability");
+        if (!checkedIssues) issues.push("Layer 1: did not call list_entries on Issue module to check technician availability");
 
-        const assignCall = toolCalls.find(
-          (t) => (t.name === "submit_activity" || t.name === "submit_activities") && !hasError(t.result)
+        const targetIssueCreateCall = toolCalls.find((toolCall) => {
+          if ((toolCall.name !== "submit_activity" && toolCall.name !== "submit_activities") ||
+              hasError(toolCall.result)) return false;
+          const submittedArguments = JSON.stringify(toolCall.arguments).toLowerCase();
+          return submittedArguments.includes("create") &&
+            (submittedArguments.includes("power outage") ||
+              submittedArguments.includes("server room"));
+        });
+        if (!targetIssueCreateCall) {
+          issues.push("Layer 1: did not successfully create the requested electrical issue");
+        }
+
+        const assignCall = toolCalls.find((toolCall) =>
+          (toolCall.name === "submit_activity" || toolCall.name === "submit_activities") &&
+          JSON.stringify(toolCall.arguments).toLowerCase().includes("assign") &&
+          !hasError(toolCall.result)
         );
         if (!assignCall) {
-          issues.push("Did not successfully call submit_activity");
+          issues.push("Layer 1: did not successfully call submit_activity");
           return { success: false, issues, hallucinated: false };
         }
 
         const raw = JSON.stringify(assignCall.arguments).toLowerCase();
 
-        // Level 2: params in tool call
+        // Layer 2: params in tool call
         const transitioned = raw.includes("assign");
-        if (!transitioned) issues.push("submit_activity did not use 'Assign' activity to transition issue");
+        if (!transitioned) issues.push("Layer 2: submit_activity did not use 'Assign' activity to transition issue");
 
-        const correctCategory = raw.includes("electrical") || raw.includes("power outage") || raw.includes("server room");
-        if (!correctCategory) issues.push("Issue created does not reference the electrical issue");
+        const createdIssueId = targetIssueCreateCall
+          ? getCreatedEntryId(targetIssueCreateCall.result)
+          : undefined;
+        const correctIssueTargeted = raw.includes("electrical") ||
+          raw.includes("power outage") ||
+          raw.includes("server room") ||
+          (createdIssueId !== undefined && raw.includes(String(createdIssueId).toLowerCase()));
+        if (!correctIssueTargeted) {
+          issues.push("Layer 2: assign call does not target the newly created electrical issue");
+        }
 
         const pickedBen   = raw.includes("ben")   || (assets && raw.includes(String(assets.benId).toLowerCase()));
         const pickedAlan  = raw.includes("alan")   || (assets && raw.includes(String(assets.alanId).toLowerCase()));
@@ -258,10 +280,10 @@ Be concise. Use the minimum tools needed to complete each task.`,
         const pickedDana  = raw.includes("dana")   || (assets && raw.includes(String(assets.danaId).toLowerCase()));
 
         if (!pickedBen) {
-          if (pickedAlan)       issues.push("Assigned to Alan Goh who already has an active In Progress issue");
-          else if (pickedClara) issues.push("Assigned to Clara Ng whose type is Plumbing, not Electrical");
-          else if (pickedDana)  issues.push("Assigned to Dana Lim whose type is HVAC, not Electrical");
-          else                  issues.push("Could not determine assigned technician — Ben Tan expected");
+          if (pickedAlan)       issues.push("Layer 2: assigned to Alan Goh who already has an active In Progress issue");
+          else if (pickedClara) issues.push("Layer 2: assigned to Clara Ng whose type is Plumbing, not Electrical");
+          else if (pickedDana)  issues.push("Layer 2: assigned to Dana Lim whose type is HVAC, not Electrical");
+          else                  issues.push("Layer 2: could not determine assigned technician — Ben Tan expected");
         }
 
         return {
@@ -275,18 +297,18 @@ Be concise. Use the minimum tools needed to complete each task.`,
         const result = await bridge.callTool("list_entries", { module: "Issue" }) as Record<string, unknown>;
         const list = (Array.isArray(result?.list) ? result.list : Array.isArray(result) ? result : []) as Array<Record<string, unknown>>;
 
-        // Level 3: entry exists, assigned to Ben, in correct state
+        // Layer 3: entry exists, assigned to Ben, in correct state
         const agentEntry = list.find((e) => {
           const raw = JSON.stringify(e).toLowerCase();
           return raw.includes("server room") || raw.includes("power outage");
         });
 
         if (!agentEntry) {
-          issues.push("No Issue entry found for 'Power outage in Server Room'");
+          issues.push("Layer 3: no Issue entry found for 'Power outage in Server Room'");
         } else {
           const raw = JSON.stringify(agentEntry).toLowerCase();
           if (!raw.includes("ben") && !(assets && raw.includes(String(assets.benId)))) {
-            issues.push("Issue entry is not assigned to Ben Tan");
+            issues.push("Layer 3: issue entry is not assigned to Ben Tan");
           }
           assets.task1IssueId = (agentEntry?.entryId ?? agentEntry?.id) as string | number;
         }
@@ -327,28 +349,30 @@ Be concise. Use the minimum tools needed to complete each task.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult => {
         const issues: string[] = [];
 
-        // Level 1: required tool calls
+        // Layer 1: required tool calls
         const checkedIssues = calledSuccessfully(toolCalls, "list_entries") &&
           toolCalls.some((t) => t.name === "list_entries" && JSON.stringify(t.arguments).toLowerCase().includes("issue"));
-        if (!checkedIssues) issues.push("Did not call list_entries on Issue module to check technician availability");
+        if (!checkedIssues) issues.push("Layer 1: did not call list_entries on Issue module to check technician availability");
 
-        const assignCall = toolCalls.find(
-          (t) => (t.name === "submit_activity" || t.name === "submit_activities") && !hasError(t.result)
+        const assignCall = toolCalls.find((toolCall) =>
+          (toolCall.name === "submit_activity" || toolCall.name === "submit_activities") &&
+          JSON.stringify(toolCall.arguments).toLowerCase().includes("assign") &&
+          !hasError(toolCall.result)
         );
         if (!assignCall) {
-          issues.push("Did not successfully call submit_activity");
+          issues.push("Layer 1: did not successfully call submit_activity");
           return { success: false, issues, hallucinated: false };
         }
 
         const raw = JSON.stringify(assignCall.arguments).toLowerCase();
 
-        // Level 2: params in tool call
+        // Layer 2: params in tool call
         const transitioned = raw.includes("assign");
-        if (!transitioned) issues.push("submit_activity did not use 'Assign' activity to transition issue");
+        if (!transitioned) issues.push("Layer 2: submit_activity did not use 'Assign' activity to transition issue");
 
         const correctIssue = raw.includes("burst pipe") || raw.includes("level 3") || raw.includes("plumbing") ||
           (assets && raw.includes(String(assets.task2IssueId).toLowerCase()));
-        if (!correctIssue) issues.push("Assigned call does not reference the plumbing issue");
+        if (!correctIssue) issues.push("Layer 2: assign call does not reference the plumbing issue");
 
         const pickedClara = raw.includes("clara")  || (assets && raw.includes(String(assets.claraId).toLowerCase()));
         const pickedAlan  = raw.includes("alan")   || (assets && raw.includes(String(assets.alanId).toLowerCase()));
@@ -356,10 +380,10 @@ Be concise. Use the minimum tools needed to complete each task.`,
         const pickedDana  = raw.includes("dana")   || (assets && raw.includes(String(assets.danaId).toLowerCase()));
 
         if (!pickedClara) {
-          if (pickedAlan)      issues.push("Assigned to Alan Goh whose type is Electrical, not Plumbing");
-          else if (pickedBen)  issues.push("Assigned to Ben Tan whose type is Electrical, not Plumbing");
-          else if (pickedDana) issues.push("Assigned to Dana Lim whose type is HVAC, not Plumbing");
-          else                 issues.push("Could not determine assigned technician — Clara Ng expected");
+          if (pickedAlan)      issues.push("Layer 2: assigned to Alan Goh whose type is Electrical, not Plumbing");
+          else if (pickedBen)  issues.push("Layer 2: assigned to Ben Tan whose type is Electrical, not Plumbing");
+          else if (pickedDana) issues.push("Layer 2: assigned to Dana Lim whose type is HVAC, not Plumbing");
+          else                 issues.push("Layer 2: could not determine assigned technician — Clara Ng expected");
         }
 
         return {
@@ -373,17 +397,17 @@ Be concise. Use the minimum tools needed to complete each task.`,
         const result = await bridge.callTool("get_entry", { module: "Issue", entryId: assets.task2IssueId }) as Record<string, unknown>;
 
         if (hasError(result)) {
-          issues.push("get_entry failed for plumbing issue");
+          issues.push("Layer 3: get_entry failed for plumbing issue");
           return { success: false, issues, hallucinated: false };
         }
 
-        // Level 3: assigned to Clara, in correct state
+        // Layer 3: assigned to Clara, in correct state
         const raw = JSON.stringify(result).toLowerCase();
         if (!raw.includes("clara") && !(assets && raw.includes(String(assets.claraId)))) {
-          issues.push("Plumbing issue is not assigned to Clara Ng");
+          issues.push("Layer 3: plumbing issue is not assigned to Clara Ng");
         }
         if (!raw.includes("in progress")) {
-          issues.push("Plumbing issue state is not 'In Progress'");
+          issues.push("Layer 3: plumbing issue state is not 'In Progress'");
         }
 
         return { success: issues.length === 0, issues, hallucinated: false };
@@ -440,35 +464,31 @@ Be concise. Use the minimum tools needed to complete each task.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult => {
         const issues: string[] = [];
 
-        // Level 1: required tool calls
+        // Layer 1: required tool calls
         const checkedIssues = calledSuccessfully(toolCalls, "list_entries") &&
           toolCalls.some((t) => t.name === "list_entries" && JSON.stringify(t.arguments).toLowerCase().includes("issue"));
-        if (!checkedIssues) issues.push("Did not call list_entries on Issue module to check technician availability");
+        if (!checkedIssues) issues.push("Layer 1: did not call list_entries on Issue module to check technician availability");
 
         const allCalls = toolCalls.filter(
           (t) => (t.name === "submit_activity" || t.name === "submit_activities") && !hasError(t.result)
         );
-        if (allCalls.length < 2) {
-          issues.push("Expected at least two successful submit_activity calls (resolve + assign)");
-          return { success: false, issues, hallucinated: false };
-        }
 
-        // Level 2: resolve call targeting Alan's issue
+        // Layer 2: resolve call targeting Alan's issue
         const resolveCall = allCalls.find((t) => {
           const raw = JSON.stringify(t.arguments).toLowerCase();
           return raw.includes("resolve") &&
             (raw.includes(String(assets?.alanActiveIssueId)) || raw.includes("circuit breaker") || raw.includes("alan"));
         });
-        if (!resolveCall) issues.push("Did not call Resolve activity on Alan's active issue");
+        if (!resolveCall) issues.push("Layer 1: did not call Resolve activity on Alan's active issue");
 
-        // Level 2: assign call targeting the new electrical issue
+        // Layer 2: assign call targeting the new electrical issue
         const assignCall = allCalls.find((t) => {
           const raw = JSON.stringify(t.arguments).toLowerCase();
           return raw.includes("assign") &&
             (raw.includes(String(assets?.task3IssueId)) || raw.includes("tripped") || raw.includes("gym"));
         });
         if (!assignCall) {
-          issues.push("Did not call Assign activity on the new electrical issue");
+          issues.push("Layer 1: did not call Assign activity on the new electrical issue");
           return { success: false, issues, hallucinated: false };
         }
 
@@ -479,10 +499,10 @@ Be concise. Use the minimum tools needed to complete each task.`,
         const pickedDana  = raw.includes("dana")   || (assets && raw.includes(String(assets.danaId).toLowerCase()));
 
         if (!pickedAlan) {
-          if (pickedBen)        issues.push("Assigned to Ben Tan who still has an active In Progress issue");
-          else if (pickedClara) issues.push("Assigned to Clara Ng whose type is Plumbing, not Electrical");
-          else if (pickedDana)  issues.push("Assigned to Dana Lim whose type is HVAC, not Electrical");
-          else                  issues.push("Could not determine assigned technician — Alan Goh expected (now free after resolve)");
+          if (pickedBen)        issues.push("Layer 2: assigned to Ben Tan who still has an active In Progress issue");
+          else if (pickedClara) issues.push("Layer 2: assigned to Clara Ng whose type is Plumbing, not Electrical");
+          else if (pickedDana)  issues.push("Layer 2: assigned to Dana Lim whose type is HVAC, not Electrical");
+          else                  issues.push("Layer 2: could not determine assigned technician — Alan Goh expected (now free after resolve)");
         }
 
         return {
@@ -494,25 +514,25 @@ Be concise. Use the minimum tools needed to complete each task.`,
       verify: async (bridge: IBridge, assets: FieldServiceAssets): Promise<EvaluationResult> => {
         const issues: string[] = [];
 
-        // Level 3: Alan's original issue should be Resolved
+        // Layer 3: Alan's original issue should be Resolved
         const alanIssueResult = await bridge.callTool("get_entry", { module: "Issue", entryId: assets.alanActiveIssueId }) as Record<string, unknown>;
         if (hasError(alanIssueResult)) {
-          issues.push("get_entry failed for Alan's original issue");
+          issues.push("Layer 3: get_entry failed for Alan's original issue");
         } else if (!JSON.stringify(alanIssueResult).toLowerCase().includes("resolved")) {
-          issues.push("Alan's original issue state is not 'Resolved'");
+          issues.push("Layer 3: Alan's original issue state is not 'Resolved'");
         }
 
-        // Level 3: new electrical issue assigned to Alan, In Progress
+        // Layer 3: new electrical issue assigned to Alan, In Progress
         const newIssueResult = await bridge.callTool("get_entry", { module: "Issue", entryId: assets.task3IssueId }) as Record<string, unknown>;
         if (hasError(newIssueResult)) {
-          issues.push("get_entry failed for new electrical issue");
+          issues.push("Layer 3: get_entry failed for new electrical issue");
         } else {
           const raw = JSON.stringify(newIssueResult).toLowerCase();
           if (!raw.includes("alan") && !(assets && raw.includes(String(assets.alanId)))) {
-            issues.push("New electrical issue is not assigned to Alan Goh");
+            issues.push("Layer 3: new electrical issue is not assigned to Alan Goh");
           }
           if (!raw.includes("in progress")) {
-            issues.push("New electrical issue state is not 'In Progress'");
+            issues.push("Layer 3: new electrical issue state is not 'In Progress'");
           }
         }
 
@@ -538,28 +558,30 @@ Be concise. Use the minimum tools needed to complete each task.`,
       evaluate: (toolCalls, _response, assets): EvaluationResult => {
         const issues: string[] = [];
 
-        // Level 1: required tool calls
+        // Layer 1: required tool calls
         const checkedIssues = calledSuccessfully(toolCalls, "list_entries") &&
           toolCalls.some((t) => t.name === "list_entries" && JSON.stringify(t.arguments).toLowerCase().includes("issue"));
-        if (!checkedIssues) issues.push("Did not call list_entries on Issue module to check technician availability");
+        if (!checkedIssues) issues.push("Layer 1: did not call list_entries on Issue module to check technician availability");
 
-        const assignCall = toolCalls.find(
-          (t) => (t.name === "submit_activity" || t.name === "submit_activities") && !hasError(t.result)
+        const assignCall = toolCalls.find((toolCall) =>
+          (toolCall.name === "submit_activity" || toolCall.name === "submit_activities") &&
+          JSON.stringify(toolCall.arguments).toLowerCase().includes("assign") &&
+          !hasError(toolCall.result)
         );
         if (!assignCall) {
-          issues.push("Did not successfully call submit_activity");
+          issues.push("Layer 1: did not successfully call submit_activity");
           return { success: false, issues, hallucinated: false };
         }
 
         const raw = JSON.stringify(assignCall.arguments).toLowerCase();
 
-        // Level 2: params in tool call
+        // Layer 2: params in tool call
         const transitioned = raw.includes("assign");
-        if (!transitioned) issues.push("submit_activity did not use 'Assign' activity");
+        if (!transitioned) issues.push("Layer 2: submit_activity did not use 'Assign' activity");
 
         const correctIssue = raw.includes("board room") || raw.includes("ac unit") || raw.includes("hvac") ||
           (assets && raw.includes(String(assets.task4IssueId).toLowerCase()));
-        if (!correctIssue) issues.push("Assign call does not reference the HVAC issue");
+        if (!correctIssue) issues.push("Layer 2: assign call does not reference the HVAC issue");
 
         const pickedDana  = raw.includes("dana")  || (assets && raw.includes(String(assets.danaId).toLowerCase()));
         const pickedAlan  = raw.includes("alan")  || (assets && raw.includes(String(assets.alanId).toLowerCase()));
@@ -567,10 +589,10 @@ Be concise. Use the minimum tools needed to complete each task.`,
         const pickedClara = raw.includes("clara") || (assets && raw.includes(String(assets.claraId).toLowerCase()));
 
         if (!pickedDana) {
-          if (pickedAlan)       issues.push("Assigned to Alan Goh whose type is Electrical, not HVAC");
-          else if (pickedBen)   issues.push("Assigned to Ben Tan whose type is Electrical, not HVAC");
-          else if (pickedClara) issues.push("Assigned to Clara Ng whose type is Plumbing, not HVAC");
-          else                  issues.push("Could not determine assigned technician — Dana Lim expected");
+          if (pickedAlan)       issues.push("Layer 2: assigned to Alan Goh whose type is Electrical, not HVAC");
+          else if (pickedBen)   issues.push("Layer 2: assigned to Ben Tan whose type is Electrical, not HVAC");
+          else if (pickedClara) issues.push("Layer 2: assigned to Clara Ng whose type is Plumbing, not HVAC");
+          else                  issues.push("Layer 2: could not determine assigned technician — Dana Lim expected");
         }
 
         return {
@@ -582,17 +604,17 @@ Be concise. Use the minimum tools needed to complete each task.`,
       verify: async (bridge: IBridge, assets: FieldServiceAssets): Promise<EvaluationResult> => {
         const issues: string[] = [];
 
-        // Level 3: HVAC issue assigned to Dana, In Progress
+        // Layer 3: HVAC issue assigned to Dana, In Progress
         const hvacIssueResult = await bridge.callTool("get_entry", { module: "Issue", entryId: assets.task4IssueId }) as Record<string, unknown>;
         if (hasError(hvacIssueResult)) {
-          issues.push("get_entry failed for HVAC issue");
+          issues.push("Layer 3: get_entry failed for HVAC issue");
         } else {
           const raw = JSON.stringify(hvacIssueResult).toLowerCase();
           if (!raw.includes("dana") && !(assets && raw.includes(String(assets.danaId)))) {
-            issues.push("HVAC issue is not assigned to Dana Lim");
+            issues.push("Layer 3: HVAC issue is not assigned to Dana Lim");
           }
           if (!raw.includes("in progress")) {
-            issues.push("HVAC issue state is not 'In Progress'");
+            issues.push("Layer 3: HVAC issue state is not 'In Progress'");
           }
         }
 
@@ -627,4 +649,3 @@ Be concise. Use the minimum tools needed to complete each task.`,
 };
 
 module.exports = scenario;
-

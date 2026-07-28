@@ -123,15 +123,14 @@ plan.md                             ← This file
 
 Each scenario is a self-contained end-to-end workflow. The key pattern:
 
-- **Global** `setup` — returns a minimal assets shell (just `workspaceId`). Does no API calls.
-- **Task 1** `setup` — creates modules, seeds entries, mutates the shared `assets` object with all IDs needed by later tasks
-- **Per-task** `setup` — optional; ensures required state exists before each task runs (prevents cascading failures if a previous task failed)
+- **Global** `setup` — runs once per model × run and creates shared run-level resources such as modules
+- **Per-task** `setup` — seeds an isolated dataset for that task
 - `system` — constant system prompt across all models
-- `tasks` — array of tasks, each with `prompt`, `evaluate`, optional `setup`, optional `verify`
+- `tasks` — array of tasks, each with `prompt`, `evaluate`, optional `setup`, `verify`, and `teardown`
 - `evaluate` — checks tool calls and response immediately after the agent finishes
 - `verify` — calls the real API after evaluate to confirm state was actually written correctly
-- **Last task** `verify` — handles full teardown (deletes entries and modules), so each model run starts with clean state
-- **Global** `teardown` — no-op (cleanup is handled in last task `verify`)
+- **Per-task** `teardown` — always runs after the task attempt, including setup/model/verify failures, and removes task data
+- **Global** `teardown` — runs after each model × run and removes shared resources plus any orphaned task data
 
 ```typescript
 const scenario: Scenario<MyAssets> = {
@@ -139,7 +138,10 @@ const scenario: Scenario<MyAssets> = {
   name: "My Scenario",
   description: "What this tests",
 
-  setup: async (_bridge, workspaceId) => ({ workspaceId, entryId: 0 }),
+  setup: async (bridge, workspaceId) => {
+    // Create run-level modules/resources.
+    return { workspaceId, entryId: 0 };
+  },
 
   system: (assets) => `You are an AI assistant. Workspace ${assets.workspaceId} is active.`,
 
@@ -148,7 +150,7 @@ const scenario: Scenario<MyAssets> = {
       id: "task_1",
       name: "Do something",
       setup: async (bridge, assets) => {
-        // create modules, seed data, mutate assets
+        // Seed this task's independent data and mutate assets.
         assets.entryId = await createEntry(bridge, assets.workspaceId);
       },
       prompt: (assets) => `Do something with entry ${assets.entryId}`,
@@ -156,16 +158,21 @@ const scenario: Scenario<MyAssets> = {
         success: true, issues: [], hallucinated: false,
       }),
       verify: async (bridge, assets) => {
-        // check real API state + run teardown on last task
+        // Layer 3: check real API state.
+      },
+      teardown: async (bridge, assets) => {
+        // Remove this task's entries. This hook always runs.
       },
     },
   ],
 
-  teardown: async () => { /* no-op — handled in last task verify */ },
+  teardown: async (bridge, assets) => {
+    // Remove run-level modules and perform fallback orphan cleanup.
+  },
 };
 ```
 
-**Key design decision:** Each task is a simple natural language instruction. The model decides on its own which tools to call. Setup/teardown is embedded in task hooks so each model run is fully isolated — no shared state between models.
+**Key design decision:** Each task is a simple natural language instruction. The model decides on its own which tools to call. Global hooks isolate model runs; task hooks isolate tasks within a run.
 
 ### 2. Current Scenarios
 
@@ -177,6 +184,8 @@ const scenario: Scenario<MyAssets> = {
 | Loan Application | `loan_application` | 4 | Compound conditional branching via cross-module foreign refs |
 | Vendor Selection | `vendor_selection` | 4 | Multi-option comparative evaluation with weighted decision gates |
 | Inventory Reorder Cascade | `inventory_reorder` | 4 | Cross-module aggregation + cascading writes to variable row sets |
+| Doctor Appointment — Patient Identity & Grounding | `doctor_appointment_grounding` | 5 | Similar-name identity resolution, empty-field grounding, booking and rescheduling |
+| Email Activity — End-to-End Retrieval | `stateless_email_activity_workflow` | 5 | Cross-module recipient resolution and entry-scoped Email activity execution |
 | All-Tools Smoke Test (Independent) | `smoke_all_tools_2` | 5 | All MCP tools, each task independent |
 | All-Tools Smoke Test (Cascading) | `smoke_all_tools_2_cascading` | 5 | All MCP tools, tasks build on each other |
 | All-Tools Smoke Test (Full) | `smoke_all_tools` | 21 | Every MCP tool exercised once across configure and runtime modes |
@@ -296,11 +305,11 @@ npm start
 
 1. Create `src/scenarios/my_scenario.ts`
 2. Follow the pattern:
-   - Global `setup` returns empty assets shell with `workspaceId`
-   - Task 1 `setup` creates modules + seeds data, mutates `assets`
-   - Per-task `setup` on downstream tasks corrects state if previous task failed
-   - Last task `verify` runs teardown (delete entries + modules)
-   - Global `teardown` is a no-op
+   - Global `setup` creates run-level modules and returns the assets shell
+   - Every task `setup` seeds an independent dataset
+   - Every task `verify` performs Layer 3 API validation
+   - Every task `teardown` removes its entries
+   - Global `teardown` removes modules and performs fallback cleanup
 3. Export with `module.exports = scenario` — auto-discovered by the runner
 
 ## Adding a New Model

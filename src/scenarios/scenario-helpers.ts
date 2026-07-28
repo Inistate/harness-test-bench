@@ -38,13 +38,22 @@ export function getCreatedEntryId(result: unknown): string | number | undefined 
 
 export function getCreatedModuleId(result: unknown): string | number | undefined {
   const r = result as Record<string, unknown>;
+  const module = r?.module as Record<string, unknown> | undefined;
+  const data = r?.data as Record<string, unknown> | undefined;
+  const nestedResult = r?.result as Record<string, unknown> | undefined;
   const candidate = firstDefined(
-    r?.id, r?.moduleId, r?.vectorId,
-    (r?.module as Record<string, unknown>)?.id,
-    (r?.module as Record<string, unknown>)?.moduleId,
-    (r?.data as Record<string, unknown>)?.id,
+    r?.id, r?.moduleId, r?.module_id, r?.vectorId, r?.vector_id,
+    module?.id, module?.moduleId, module?.module_id, module?.vectorId, module?.vector_id,
+    data?.id, data?.moduleId, data?.module_id, data?.vectorId, data?.vector_id,
+    nestedResult?.id, nestedResult?.moduleId, nestedResult?.module_id,
+    nestedResult?.vectorId, nestedResult?.vector_id,
   );
-  return isValidId(candidate) ? (candidate as string | number) : undefined;
+  const validModuleId =
+    (typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0) ||
+    (typeof candidate === "string" &&
+      candidate.trim().length > 0 &&
+      candidate.toLowerCase() !== "new");
+  return validModuleId ? (candidate as string | number) : undefined;
 }
 
 export function getModuleList(result: unknown): Array<Record<string, unknown>> {
@@ -52,13 +61,26 @@ export function getModuleList(result: unknown): Array<Record<string, unknown>> {
   const r = result as Record<string, unknown>;
   if (Array.isArray(r?.list)) return r.list as Array<Record<string, unknown>>;
   if (Array.isArray(r?.modules)) return r.modules as Array<Record<string, unknown>>;
+  if (Array.isArray(r?.data)) return r.data as Array<Record<string, unknown>>;
+  const data = r?.data as Record<string, unknown> | undefined;
+  if (Array.isArray(data?.list)) return data.list as Array<Record<string, unknown>>;
+  if (Array.isArray(data?.modules)) return data.modules as Array<Record<string, unknown>>;
+  if (Array.isArray(r?.result)) return r.result as Array<Record<string, unknown>>;
+  const nestedResult = r?.result as Record<string, unknown> | undefined;
+  if (Array.isArray(nestedResult?.list))
+    return nestedResult.list as Array<Record<string, unknown>>;
+  if (Array.isArray(nestedResult?.modules))
+    return nestedResult.modules as Array<Record<string, unknown>>;
   return [];
 }
 
 export function findModuleByName(result: unknown, name: string): Record<string, unknown> | undefined {
   const lower = name.toLowerCase();
   return getModuleList(result).find((m) =>
-    String(m?.name ?? m?.module ?? m?.moduleName ?? "").toLowerCase() === lower
+    String(
+      m?.name ?? m?.module ?? m?.moduleName ?? m?.module_name ??
+      m?.displayName ?? m?.display_name ?? m?.title ?? ""
+    ).toLowerCase() === lower
   );
 }
 

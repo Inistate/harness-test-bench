@@ -159,7 +159,7 @@ async function seedProductAndRows(
 
 type ExpectedOutcome = "Reorder" | "No Change";
 
-// Level 1 + 2: correct tool calls and correct params
+// Layer 1 + 2: correct tool calls and correct params
 function evaluateCascade(
   toolCalls: ToolCall[],
   productId: string | number,
@@ -169,15 +169,17 @@ function evaluateCascade(
 ): EvaluationResult {
   const issues: string[] = [];
 
-  // Level 1 — must read both inventory sources for this product before deciding
+  // Layer 1 — must read both inventory sources for this product before deciding
   const readInv1 = toolCalls.some((t) =>
     (t.name === "list_entries" || t.name === "get_entry") &&
-    JSON.stringify(t.arguments).toLowerCase().includes("inventory1"));
+    JSON.stringify(t.arguments).toLowerCase().includes("inventory1") &&
+    !hasError(t.result));
   const readInv2 = toolCalls.some((t) =>
     (t.name === "list_entries" || t.name === "get_entry") &&
-    JSON.stringify(t.arguments).toLowerCase().includes("inventory2"));
-  if (!readInv1) issues.push("Level 1: did not read Inventory1 rows for the product");
-  if (!readInv2) issues.push("Level 1: did not read Inventory2 rows for the product");
+    JSON.stringify(t.arguments).toLowerCase().includes("inventory2") &&
+    !hasError(t.result));
+  if (!readInv1) issues.push("Layer 1: did not read Inventory1 rows for the product");
+  if (!readInv2) issues.push("Layer 1: did not read Inventory2 rows for the product");
 
   const reorderCalls = toolCalls.filter((t) =>
     (t.name === "submit_activity" || t.name === "submit_activities") &&
@@ -186,29 +188,29 @@ function evaluateCascade(
 
   if (expected === "Reorder") {
     const productFlagged = reorderCalls.some((t) => JSON.stringify(t.arguments).includes(String(productId)));
-    if (!productFlagged) issues.push("Level 1: Product was not flagged for Reorder");
+    if (!productFlagged) issues.push("Layer 2: Product was not flagged for Reorder");
 
     for (const id of inv1Ids) {
       if (!reorderCalls.some((t) => JSON.stringify(t.arguments).includes(String(id)))) {
-        issues.push(`Level 1: Inventory1 row ${id} was not flagged for Reorder`);
+        issues.push(`Layer 2: Inventory1 row ${id} was not flagged for Reorder`);
       }
     }
     for (const id of inv2Ids) {
       if (!reorderCalls.some((t) => JSON.stringify(t.arguments).includes(String(id)))) {
-        issues.push(`Level 1: Inventory2 row ${id} was not flagged for Reorder`);
+        issues.push(`Layer 2: Inventory2 row ${id} was not flagged for Reorder`);
       }
     }
   } else {
     // No Change expected — any reorder call anywhere is a false trigger
     if (reorderCalls.length > 0) {
-      issues.push("Level 1: model triggered Reorder when total stock was above threshold (false trigger)");
+      issues.push("Layer 2: model triggered Reorder when total stock was above threshold (false trigger)");
     }
   }
 
   return { success: issues.length === 0, issues, hallucinated: false };
 }
 
-// Level 3 — real API validation
+// Layer 3 — real API validation
 async function verifyCascadeState(
   bridge: IBridge,
   productId: string | number,
@@ -221,21 +223,21 @@ async function verifyCascadeState(
 
   const product = await bridge.callTool("get_entry", { module: "Product", entryId: productId }) as Record<string, unknown>;
   if (!JSON.stringify(product).toLowerCase().includes(expectedState)) {
-    issues.push(`Level 3: Product state is not "${expected === "Reorder" ? "Reorder" : "In Stock"}"`);
+    issues.push(`Layer 3: Product state is not "${expected === "Reorder" ? "Reorder" : "In Stock"}"`);
   }
 
   for (const id of inv1Ids) {
     const row = await bridge.callTool("get_entry", { module: "Inventory1", entryId: id }) as Record<string, unknown>;
     const rowExpected = expected === "Reorder" ? "reorder" : "stocked";
     if (!JSON.stringify(row).toLowerCase().includes(rowExpected)) {
-      issues.push(`Level 3: Inventory1 row ${id} state mismatch (expected ${expected === "Reorder" ? "Reorder" : "Stocked"})`);
+      issues.push(`Layer 3: Inventory1 row ${id} state mismatch (expected ${expected === "Reorder" ? "Reorder" : "Stocked"})`);
     }
   }
   for (const id of inv2Ids) {
     const row = await bridge.callTool("get_entry", { module: "Inventory2", entryId: id }) as Record<string, unknown>;
     const rowExpected = expected === "Reorder" ? "reorder" : "stocked";
     if (!JSON.stringify(row).toLowerCase().includes(rowExpected)) {
-      issues.push(`Level 3: Inventory2 row ${id} state mismatch (expected ${expected === "Reorder" ? "Reorder" : "Stocked"})`);
+      issues.push(`Layer 3: Inventory2 row ${id} state mismatch (expected ${expected === "Reorder" ? "Reorder" : "Stocked"})`);
     }
   }
 

@@ -77,15 +77,27 @@ const scenario: Scenario<SmokeAssets> = {
       prompt: "What workspaces are there?",
       evaluate: (toolCalls, response) => {
         const ok = called(toolCalls, "list_workspaces");
-        return { success: ok, issues: ok ? [] : ["Did not call list_workspaces"], hallucinated: !ok && mentionsAny(response, "workspace") };
+        return { success: ok, issues: ok ? [] : ["Layer 1: did not call list_workspaces"], hallucinated: !ok && mentionsAny(response, "workspace") };
       },
     },
     {
       id: "task_02_set_workspace", name: "set_workspace",
       prompt: (assets) => `Use the ${assets.workspaceName} workspace.`,
-      evaluate: (toolCalls, response) => {
-        const ok = called(toolCalls, "set_workspace");
-        return { success: ok, issues: ok ? [] : ["Did not call set_workspace"], hallucinated: !ok && mentionsAny(response, "set", "active", "switched") };
+      evaluate: (toolCalls, response, assets) => {
+        const calledSetWorkspace = called(toolCalls, "set_workspace");
+        const correctWorkspace = calledWith(
+          toolCalls,
+          "set_workspace",
+          (arguments_) => String(arguments_["workspaceId"]) === String(assets?.workspaceId),
+        );
+        const issues = !calledSetWorkspace
+          ? ["Layer 1: did not call set_workspace"]
+          : correctWorkspace ? [] : ["Layer 2: set_workspace used the wrong workspaceId"];
+        return {
+          success: issues.length === 0,
+          issues,
+          hallucinated: !calledSetWorkspace && mentionsAny(response, "set", "active", "switched"),
+        };
       },
     },
     {
@@ -93,7 +105,7 @@ const scenario: Scenario<SmokeAssets> = {
       prompt: "Switch to configure mode.",
       evaluate: (toolCalls, response) => {
         const ok = calledWith(toolCalls, "switch_mode", (a) => a["mode"] === "configure");
-        return { success: ok, issues: ok ? [] : ["Did not call switch_mode with mode=configure"], hallucinated: !ok && mentionsAny(response, "configure", "switched") };
+        return { success: ok, issues: ok ? [] : ["Layer 1: did not call switch_mode with mode=configure"], hallucinated: !ok && mentionsAny(response, "configure", "switched") };
       },
     },
     {
@@ -101,7 +113,7 @@ const scenario: Scenario<SmokeAssets> = {
       prompt: "Design a Support Ticket approval workflow.",
       evaluate: (toolCalls, response) => {
         const ok = called(toolCalls, "design_workflow");
-        return { success: ok, issues: ok ? [] : ["Did not call design_workflow"], hallucinated: !ok && mentionsAny(response, "template", "state", "activit", "workflow") };
+        return { success: ok, issues: ok ? [] : ["Layer 1: did not call design_workflow"], hallucinated: !ok && mentionsAny(response, "template", "state", "activit", "workflow") };
       },
     },
     {
@@ -109,7 +121,7 @@ const scenario: Scenario<SmokeAssets> = {
       prompt: `Is this schema valid? ${JSON.stringify({ name: "Validate Me", information: [{ name: "Title", type: "Text" }], states: [{ name: "Open", color: "#5A6070", initial: true }, { name: "Closed", color: "#1E6B45" }], activities: [{ name: "Close", actor: "human", fields: ["Title"] }], flows: [{ from: "Open", to: "Closed", activity: "Close" }] })}`,
       evaluate: (toolCalls, response) => {
         const ok = called(toolCalls, "validate_design");
-        return { success: ok, issues: ok ? [] : ["Did not call validate_design"], hallucinated: !ok && mentionsAny(response, "valid", "error", "schema") };
+        return { success: ok, issues: ok ? [] : ["Layer 1: did not call validate_design"], hallucinated: !ok && mentionsAny(response, "valid", "error", "schema") };
       },
     },
     {
@@ -119,8 +131,8 @@ const scenario: Scenario<SmokeAssets> = {
         const ok = calledWith(toolCalls, "create_module", (a) => String(a["name"] ?? "").toLowerCase().includes("smoketemp"));
         const wrongName = called(toolCalls, "create_module") && !ok;
         const issues: string[] = [];
-        if (!called(toolCalls, "create_module")) issues.push("Did not call create_module");
-        else if (wrongName) issues.push("create_module called but name did not include 'SmokeTemp'");
+        if (!called(toolCalls, "create_module")) issues.push("Layer 1: did not call create_module");
+        else if (wrongName) issues.push("Layer 2: create_module name did not include 'SmokeTemp'");
         return { success: ok, issues, hallucinated: !called(toolCalls, "create_module") && mentionsAny(response, "created", "module") };
       },
     },
@@ -130,8 +142,8 @@ const scenario: Scenario<SmokeAssets> = {
       evaluate: (toolCalls, response) => {
         const ok = calledWith(toolCalls, "get_module_schema", (a) => String(a["module"] ?? "").toLowerCase().includes("smoketemp"));
         const issues: string[] = [];
-        if (!called(toolCalls, "get_module_schema")) issues.push("Did not call get_module_schema");
-        else if (!ok) issues.push("Called get_module_schema but for wrong module");
+        if (!called(toolCalls, "get_module_schema")) issues.push("Layer 1: did not call get_module_schema");
+        else if (!ok) issues.push("Layer 2: called get_module_schema but for wrong module");
         return { success: ok, issues, hallucinated: !called(toolCalls, "get_module_schema") && mentionsAny(response, "title", "open", "closed", "field") };
       },
     },
@@ -142,7 +154,7 @@ const scenario: Scenario<SmokeAssets> = {
         const ok = called(toolCalls, "get_module_canvas");
         const usedSchema = !ok && called(toolCalls, "get_module_schema");
         const issues: string[] = [];
-        if (!ok) issues.push(usedSchema ? "Called get_module_schema instead of get_module_canvas" : "Did not call get_module_canvas");
+        if (!ok) issues.push(usedSchema ? "Layer 1: called get_module_schema instead of get_module_canvas" : "Layer 1: did not call get_module_canvas");
         return { success: ok, issues, hallucinated: !ok && !usedSchema && mentionsAny(response, "id", "canvas", "definition") };
       },
     },
@@ -150,8 +162,20 @@ const scenario: Scenario<SmokeAssets> = {
       id: "task_09_update_module", name: "update_module",
       prompt: "Add a Priority field (Low, Medium, High) to SmokeTemp.",
       evaluate: (toolCalls, response) => {
-        const ok = called(toolCalls, "update_module");
-        return { success: ok, issues: ok ? [] : ["Did not call update_module"], hallucinated: !ok && mentionsAny(response, "added", "priority", "updated") };
+        const calledUpdateModule = called(toolCalls, "update_module");
+        const correctUpdate = calledWith(toolCalls, "update_module", (arguments_) => {
+          const serializedArguments = JSON.stringify(arguments_).toLowerCase();
+          return serializedArguments.includes("smoketemp") &&
+            serializedArguments.includes("priority");
+        });
+        const issues = !calledUpdateModule
+          ? ["Layer 1: did not call update_module"]
+          : correctUpdate ? [] : ["Layer 2: update_module did not target SmokeTemp with a Priority field"];
+        return {
+          success: issues.length === 0,
+          issues,
+          hallucinated: !calledUpdateModule && mentionsAny(response, "added", "priority", "updated"),
+        };
       },
     },
     {
@@ -159,7 +183,7 @@ const scenario: Scenario<SmokeAssets> = {
       prompt: "Switch back to runtime mode.",
       evaluate: (toolCalls, response) => {
         const ok = calledWith(toolCalls, "switch_mode", (a) => a["mode"] === "runtime");
-        return { success: ok, issues: ok ? [] : ["Did not call switch_mode with mode=runtime"], hallucinated: !ok && mentionsAny(response, "runtime", "switched") };
+        return { success: ok, issues: ok ? [] : ["Layer 1: did not call switch_mode with mode=runtime"], hallucinated: !ok && mentionsAny(response, "runtime", "switched") };
       },
     },
     {
@@ -167,7 +191,7 @@ const scenario: Scenario<SmokeAssets> = {
       prompt: (assets) => `What modules are in the ${assets.workspaceName} workspace?`,
       evaluate: (toolCalls, response) => {
         const ok = called(toolCalls, "list_modules");
-        return { success: ok, issues: ok ? [] : ["Did not call list_modules"], hallucinated: !ok && mentionsAny(response, "module", "smoketemp", "invoice") };
+        return { success: ok, issues: ok ? [] : ["Layer 1: did not call list_modules"], hallucinated: !ok && mentionsAny(response, "module", "smoketemp", "invoice") };
       },
     },
     {
@@ -176,8 +200,8 @@ const scenario: Scenario<SmokeAssets> = {
       evaluate: (toolCalls, response) => {
         const ok = calledWith(toolCalls, "get_form", (a) => String(a["module"] ?? "").toLowerCase().includes("smoketemp"));
         const issues: string[] = [];
-        if (!called(toolCalls, "get_form")) issues.push("Did not call get_form");
-        else if (!ok) issues.push("Called get_form but for wrong module");
+        if (!called(toolCalls, "get_form")) issues.push("Layer 1: did not call get_form");
+        else if (!ok) issues.push("Layer 2: called get_form but for wrong module");
         return { success: ok, issues, hallucinated: !called(toolCalls, "get_form") && mentionsAny(response, "title", "field", "fill", "required") };
       },
     },
@@ -185,10 +209,14 @@ const scenario: Scenario<SmokeAssets> = {
       id: "task_13_submit_activity", name: "submit_activity",
       prompt: "Create a SmokeTemp entry — Title: 'Smoke Test Entry'.",
       evaluate: (toolCalls, response) => {
-        const ok = calledWith(toolCalls, "submit_activity", (a) => String(a["module"] ?? "").toLowerCase().includes("smoketemp"));
+        const ok = calledWith(toolCalls, "submit_activity", (arguments_) => {
+          const serializedArguments = JSON.stringify(arguments_).toLowerCase();
+          return serializedArguments.includes("smoketemp") &&
+            serializedArguments.includes("smoke test entry");
+        });
         const issues: string[] = [];
-        if (!called(toolCalls, "submit_activity")) issues.push("Did not call submit_activity");
-        else if (!ok) issues.push("Called submit_activity but for wrong module");
+        if (!called(toolCalls, "submit_activity")) issues.push("Layer 1: did not call submit_activity");
+        else if (!ok) issues.push("Layer 2: submit_activity did not create 'Smoke Test Entry' in SmokeTemp");
         return { success: ok, issues, hallucinated: !called(toolCalls, "submit_activity") && mentionsAny(response, "created", "entry") };
       },
     },
@@ -198,8 +226,8 @@ const scenario: Scenario<SmokeAssets> = {
       evaluate: (toolCalls, response) => {
         const ok = calledWith(toolCalls, "list_entries", (a) => String(a["module"] ?? "").toLowerCase().includes("smoketemp"));
         const issues: string[] = [];
-        if (!called(toolCalls, "list_entries")) issues.push("Did not call list_entries");
-        else if (!ok) issues.push("Called list_entries but for wrong module");
+        if (!called(toolCalls, "list_entries")) issues.push("Layer 1: did not call list_entries");
+        else if (!ok) issues.push("Layer 2: called list_entries but for wrong module");
         return { success: ok, issues, hallucinated: !called(toolCalls, "list_entries") && mentionsAny(response, "entry", "entries") };
       },
     },
@@ -207,18 +235,41 @@ const scenario: Scenario<SmokeAssets> = {
       id: "task_15_get_entry", name: "get_entry",
       prompt: "Show me the entry SMK00001 in SmokeTemp.",
       evaluate: (toolCalls, response) => {
-        const ok = called(toolCalls, "get_entry");
-        return { success: ok, issues: ok ? [] : ["Did not call get_entry"], hallucinated: !ok && mentionsAny(response, "title", "open", "smoke test entry") };
+        const calledGetEntry = called(toolCalls, "get_entry");
+        const correctEntry = calledWith(toolCalls, "get_entry", (arguments_) => {
+          const serializedArguments = JSON.stringify(arguments_).toLowerCase();
+          return serializedArguments.includes("smoketemp") &&
+            serializedArguments.includes("smk00001");
+        });
+        const issues = !calledGetEntry
+          ? ["Layer 1: did not call get_entry"]
+          : correctEntry ? [] : ["Layer 2: get_entry did not target SMK00001 in SmokeTemp"];
+        return {
+          success: issues.length === 0,
+          issues,
+          hallucinated: !calledGetEntry && mentionsAny(response, "title", "open", "smoke test entry"),
+        };
       },
     },
     {
       id: "task_16_submit_activities", name: "submit_activities",
       prompt: "Create two SmokeTemp entries: Title 'Bulk A' and Title 'Bulk B'.",
       evaluate: (toolCalls, response) => {
-        const ok = called(toolCalls, "submit_activities");
+        const ok = calledWith(toolCalls, "submit_activities", (arguments_) => {
+          const serializedArguments = JSON.stringify(arguments_).toLowerCase();
+          const items = arguments_["items"];
+          return Array.isArray(items) &&
+            items.length === 2 &&
+            serializedArguments.includes("bulk a") &&
+            serializedArguments.includes("bulk b");
+        });
         const usedSingle = !ok && toolCalls.filter((t) => t.name === "submit_activity").length >= 2;
         const issues: string[] = [];
-        if (!ok) issues.push(usedSingle ? "Used submit_activity twice instead of submit_activities" : "Did not call submit_activities");
+        if (!called(toolCalls, "submit_activities")) {
+          issues.push(usedSingle ? "Layer 1: used submit_activity twice instead of submit_activities" : "Layer 1: did not call submit_activities");
+        } else if (!ok) {
+          issues.push("Layer 2: submit_activities did not contain exactly Bulk A and Bulk B");
+        }
         return { success: ok, issues, hallucinated: !ok && !usedSingle && mentionsAny(response, "created", "bulk a", "bulk b") };
       },
     },
@@ -226,18 +277,36 @@ const scenario: Scenario<SmokeAssets> = {
       id: "task_17_get_entry_history", name: "get_entry_history",
       prompt: "What's the history of entry SMK00001 in SmokeTemp?",
       evaluate: (toolCalls, response) => {
-        const ok = called(toolCalls, "get_entry_history");
-        return { success: ok, issues: ok ? [] : ["Did not call get_entry_history"], hallucinated: !ok && mentionsAny(response, "history", "created", "audit") };
+        const calledHistory = called(toolCalls, "get_entry_history");
+        const correctHistory = calledWith(toolCalls, "get_entry_history", (arguments_) => {
+          const serializedArguments = JSON.stringify(arguments_).toLowerCase();
+          return serializedArguments.includes("smoketemp") &&
+            serializedArguments.includes("smk00001");
+        });
+        const issues = !calledHistory
+          ? ["Layer 1: did not call get_entry_history"]
+          : correctHistory ? [] : ["Layer 2: get_entry_history did not target SMK00001 in SmokeTemp"];
+        return {
+          success: issues.length === 0,
+          issues,
+          hallucinated: !calledHistory && mentionsAny(response, "history", "created", "audit"),
+        };
       },
     },
     {
       id: "task_18_request_upload_url", name: "request_upload_url",
       prompt: "Upload a file called smoke-test.pdf to SmokeTemp.",
       evaluate: (toolCalls, response) => {
-        const ok = called(toolCalls, "request_upload_url");
+        const ok = calledWith(toolCalls, "request_upload_url", (arguments_) =>
+          JSON.stringify(arguments_).toLowerCase().includes("smoke-test.pdf")
+        );
         const usedFallback = !ok && called(toolCalls, "upload_file");
         const issues: string[] = [];
-        if (!ok) issues.push(usedFallback ? "Used upload_file (fallback) instead of request_upload_url" : "Did not call request_upload_url");
+        if (!called(toolCalls, "request_upload_url")) {
+          issues.push(usedFallback ? "Layer 1: used upload_file (fallback) instead of request_upload_url" : "Layer 1: did not call request_upload_url");
+        } else if (!ok) {
+          issues.push("Layer 2: request_upload_url did not use filename smoke-test.pdf");
+        }
         return { success: ok, issues, hallucinated: !ok && !usedFallback && mentionsAny(response, "upload", "url", "presigned") };
       },
     },
@@ -246,15 +315,27 @@ const scenario: Scenario<SmokeAssets> = {
       prompt: "Confirm a pending file upload to SmokeTemp.",
       evaluate: (toolCalls, response) => {
         const ok = called(toolCalls, "confirm_upload");
-        return { success: ok, issues: ok ? [] : ["Did not call confirm_upload"], hallucinated: !ok && mentionsAny(response, "confirmed", "upload") };
+        return { success: ok, issues: ok ? [] : ["Layer 1: did not call confirm_upload"], hallucinated: !ok && mentionsAny(response, "confirmed", "upload") };
       },
     },
     {
       id: "task_20_upload_file", name: "upload_file",
       prompt: "The presigned upload isn't working. Upload smoke.txt to SmokeTemp directly — content: 'c21va2U=' (base64), type: text/plain.",
       evaluate: (toolCalls, response) => {
-        const ok = called(toolCalls, "upload_file");
-        return { success: ok, issues: ok ? [] : ["Did not call upload_file"], hallucinated: !ok && mentionsAny(response, "uploaded", "file") };
+        const calledUpload = called(toolCalls, "upload_file");
+        const correctUpload = calledWith(toolCalls, "upload_file", (arguments_) => {
+          const serializedArguments = JSON.stringify(arguments_).toLowerCase();
+          return serializedArguments.includes("smoke.txt") &&
+            serializedArguments.includes("c21va2u=");
+        });
+        const issues = !calledUpload
+          ? ["Layer 1: did not call upload_file"]
+          : correctUpload ? [] : ["Layer 2: upload_file did not include smoke.txt and the requested base64 content"];
+        return {
+          success: issues.length === 0,
+          issues,
+          hallucinated: !calledUpload && mentionsAny(response, "uploaded", "file"),
+        };
       },
     },
     {
@@ -262,7 +343,7 @@ const scenario: Scenario<SmokeAssets> = {
       prompt: "Download a file from SmokeTemp.",
       evaluate: (toolCalls, response) => {
         const ok = called(toolCalls, "download_file");
-        return { success: ok, issues: ok ? [] : ["Did not call download_file"], hallucinated: !ok && mentionsAny(response, "download", "url", "link") };
+        return { success: ok, issues: ok ? [] : ["Layer 1: did not call download_file"], hallucinated: !ok && mentionsAny(response, "download", "url", "link") };
       },
     },
   ],

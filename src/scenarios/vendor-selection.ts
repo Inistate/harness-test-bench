@@ -295,15 +295,20 @@ function evaluateVendorSelection(
 
   const readQuotes = toolCalls.some(t =>
     t.name === "list_entries" &&
+    !hasError(t.result) &&
     (JSON.stringify(t.arguments).toLowerCase().includes("vendorquote") ||
      JSON.stringify(t.arguments).toLowerCase().includes("quote"))
   );
-  if (!readQuotes) issues.push("Did not call list_entries on VendorQuote to retrieve quotes");
+  if (!readQuotes) issues.push("Layer 1: did not successfully call list_entries on VendorQuote");
 
-  const readVendors = vendorIds.some(id =>
-    toolCalls.some(t => t.name === "get_entry" && JSON.stringify(t.arguments).includes(String(id)))
+  const readAllVendors = vendorIds.every(id =>
+    toolCalls.some(t =>
+      t.name === "get_entry" &&
+      !hasError(t.result) &&
+      JSON.stringify(t.arguments).includes(String(id))
+    )
   );
-  if (!readVendors) issues.push("Did not call get_entry on any Vendor to check quality ratings");
+  if (!readAllVendors) issues.push("Layer 1: did not successfully read every Vendor quality rating");
 
   const allSubmitCalls = toolCalls.filter(t =>
     (t.name === "submit_activity") && !hasError(t.result)
@@ -314,19 +319,22 @@ function evaluateVendorSelection(
       JSON.stringify(t.arguments).toLowerCase().includes("cancel")
     );
     if (!cancelCall) {
-      issues.push("Expected to cancel the PurchaseRequest but no Cancel activity was found");
+      issues.push("Layer 1: expected Cancel on the PurchaseRequest but no successful call was found");
       const placedOrder = allSubmitCalls.some(t =>
         JSON.stringify(t.arguments).toLowerCase().includes("place order")
       );
       if (placedOrder) {
-        issues.push("Placed an order instead of cancelling — no vendor qualified");
+        issues.push("Layer 2: placed an order instead of cancelling when no vendor qualified");
         return { success: false, issues, hallucinated: true };
       }
       return { success: false, issues, hallucinated: false };
     }
     const raw = JSON.stringify(cancelCall.arguments).toLowerCase();
+    if (!raw.includes(String(prId).toLowerCase())) {
+      issues.push("Layer 2: Cancel call did not target the exact PurchaseRequest entry");
+    }
     if (!raw.includes("status notes") && !raw.includes("status_notes")) {
-      issues.push("Cancel call missing Status Notes with explanation");
+      issues.push("Layer 2: Cancel call missing Status Notes with explanation");
     }
     return { success: issues.length === 0, issues, hallucinated: false };
   }
@@ -335,12 +343,12 @@ function evaluateVendorSelection(
     JSON.stringify(t.arguments).toLowerCase().includes("place order")
   );
   if (!placeOrderCall) {
-    issues.push("Did not call Place Order activity on the PurchaseRequest");
+    issues.push("Layer 1: did not successfully call Place Order on the PurchaseRequest");
     const cancelled = allSubmitCalls.some(t =>
       JSON.stringify(t.arguments).toLowerCase().includes("cancel")
     );
     if (cancelled) {
-      issues.push("Cancelled the PurchaseRequest instead of placing an order");
+      issues.push("Layer 2: cancelled the PurchaseRequest instead of placing an order");
       return { success: false, issues, hallucinated: true };
     }
     return { success: false, issues, hallucinated: false };
@@ -349,19 +357,19 @@ function evaluateVendorSelection(
   const raw = JSON.stringify(placeOrderCall.arguments).toLowerCase();
   const correctVendor = raw.includes(seed.winnerVendorName.toLowerCase());
   const correctCost = raw.includes(String(seed.winnerTotalCost));
-  const correctPrTarget = raw.includes(String(prId)) || raw.includes("purchaserequest");
+  const correctPrTarget = raw.includes(String(prId));
 
   if (!correctVendor) {
-    issues.push(`Place Order did not reference expected vendor "${seed.winnerVendorName}"`);
+    issues.push(`Layer 2: Place Order did not reference expected vendor "${seed.winnerVendorName}"`);
     const wrongVendors = seed.vendors
       .filter((_, i) => i !== seed.winnerIndex)
       .filter(v => raw.includes(v.name.toLowerCase()));
     for (const wv of wrongVendors) {
-      issues.push(`Place Order referenced "${wv.name}" instead of expected winner`);
+      issues.push(`Layer 2: Place Order referenced "${wv.name}" instead of expected winner`);
     }
   }
-  if (!correctCost) issues.push(`Place Order missing Total Cost of $${seed.winnerTotalCost}`);
-  if (!correctPrTarget) issues.push("Place Order did not target the PurchaseRequest module");
+  if (!correctCost) issues.push(`Layer 2: Place Order missing Total Cost of $${seed.winnerTotalCost}`);
+  if (!correctPrTarget) issues.push("Layer 2: Place Order did not target the exact PurchaseRequest entry");
 
   const acceptCalls = allSubmitCalls.filter(t =>
     JSON.stringify(t.arguments).toLowerCase().includes("accept")
@@ -370,12 +378,22 @@ function evaluateVendorSelection(
     JSON.stringify(t.arguments).toLowerCase().includes("decline")
   );
 
-  if (acceptCalls.length === 0) {
-    issues.push("Did not call Accept Quote on any vendor quote");
+  const winningQuoteId = quoteIds[seed.winnerIndex];
+  const acceptedWinningQuote = acceptCalls.some((call) =>
+    JSON.stringify(call.arguments).includes(String(winningQuoteId))
+  );
+  if (!acceptedWinningQuote) {
+    issues.push("Layer 2: did not call Accept Quote on the winning VendorQuote");
   }
-  const expectedDeclines = quoteIds.length - 1;
-  if (declineCalls.length < expectedDeclines) {
-    issues.push(`Expected ${expectedDeclines} Decline Quote calls but found ${declineCalls.length}`);
+  for (let quoteIndex = 0; quoteIndex < quoteIds.length; quoteIndex++) {
+    if (quoteIndex === seed.winnerIndex) continue;
+    const losingQuoteId = quoteIds[quoteIndex];
+    const losingQuoteDeclined = declineCalls.some((call) =>
+      JSON.stringify(call.arguments).includes(String(losingQuoteId))
+    );
+    if (!losingQuoteDeclined) {
+      issues.push(`Layer 2: did not call Decline Quote on losing VendorQuote ${losingQuoteId}`);
+    }
   }
 
   const hallucinated = !correctVendor && raw.length > 0;
@@ -391,44 +409,44 @@ async function verifyVendorSelection(
 
   const pr = await bridge.callTool("get_entry", { module: "PurchaseRequest", entryId: prId }) as Record<string, unknown>;
   if (hasError(pr)) {
-    issues.push("get_entry failed for PurchaseRequest");
+    issues.push("Layer 3: get_entry failed for PurchaseRequest");
     return { success: false, issues, hallucinated: false };
   }
 
   if (seed.winnerIndex === null) {
     if (!JSON.stringify(pr).toLowerCase().includes("cancelled")) {
-      issues.push("PurchaseRequest state is not Cancelled as expected");
+      issues.push("Layer 3: PurchaseRequest state is not Cancelled as expected");
     }
     return { success: issues.length === 0, issues, hallucinated: false };
   }
 
   const prRaw = JSON.stringify(pr).toLowerCase();
   if (!prRaw.includes("ordered")) {
-    issues.push("PurchaseRequest state is not Ordered");
+    issues.push("Layer 3: PurchaseRequest state is not Ordered");
   } else {
     if (!prRaw.includes(seed.winnerVendorName.toLowerCase())) {
-      issues.push(`Selected Vendor field does not contain "${seed.winnerVendorName}"`);
+      issues.push(`Layer 3: Selected Vendor field does not contain "${seed.winnerVendorName}"`);
     }
     if (!prRaw.includes(String(seed.winnerTotalCost))) {
-      issues.push(`Total Cost $${seed.winnerTotalCost} not found on PurchaseRequest`);
+      issues.push(`Layer 3: Total Cost $${seed.winnerTotalCost} not found on PurchaseRequest`);
     }
   }
 
   const winQuoteId = quoteIds[seed.winnerIndex];
   const winQuote = await bridge.callTool("get_entry", { module: "VendorQuote", entryId: winQuoteId }) as Record<string, unknown>;
   if (hasError(winQuote)) {
-    issues.push("get_entry failed for winning VendorQuote");
+    issues.push("Layer 3: get_entry failed for winning VendorQuote");
   } else if (!JSON.stringify(winQuote).toLowerCase().includes("accepted")) {
-    issues.push("Winning VendorQuote state is not Accepted");
+    issues.push("Layer 3: winning VendorQuote state is not Accepted");
   }
 
   for (let i = 0; i < quoteIds.length; i++) {
     if (i === seed.winnerIndex) continue;
     const quote = await bridge.callTool("get_entry", { module: "VendorQuote", entryId: quoteIds[i] }) as Record<string, unknown>;
     if (hasError(quote)) {
-      issues.push(`get_entry failed for VendorQuote ${quoteIds[i]}`);
+      issues.push(`Layer 3: get_entry failed for VendorQuote ${quoteIds[i]}`);
     } else if (!JSON.stringify(quote).toLowerCase().includes("declined")) {
-      issues.push(`VendorQuote ${quoteIds[i]} (index ${i}) state is not Declined`);
+      issues.push(`Layer 3: VendorQuote ${quoteIds[i]} (index ${i}) state is not Declined`);
     }
   }
 

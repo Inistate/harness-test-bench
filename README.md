@@ -21,6 +21,7 @@ cp .env.example .env
 | Variable | Description |
 |---|---|
 | `OPENROUTER_API_KEY` | OpenRouter API key |
+| `JUDGE_MODEL` | (Optional) OpenRouter model ID used for semantic evaluation; defaults to `deepseek/deepseek-v4-flash` |
 | `INISTATE_API_TOKEN` | Inistate API token |
 | `INISTATE_API_URL` | Inistate base URL (default: `https://app02.apps.inistate.com`) |
 | `INISTATE_MCP_PATH` | Absolute path to the built Inistate MCP entry file |
@@ -85,6 +86,7 @@ Create a new file in `src/scenarios/`:
 import type { IBridge, Scenario } from "../types";
 
 interface MyAssets {
+  workspaceId: string;
   entryId: string;
 }
 
@@ -93,9 +95,9 @@ const scenario: Scenario<MyAssets> = {
   name: "My Scenario",
   description: "What this tests",
 
-  setup: async (bridge: IBridge): Promise<MyAssets> => {
-    // create entries, return assets
-    return { entryId: "123" };
+  setup: async (bridge: IBridge, workspaceId: string): Promise<MyAssets> => {
+    // Create run-level modules/resources.
+    return { workspaceId, entryId: "" };
   },
 
   system: "You are an AI assistant...",
@@ -104,17 +106,30 @@ const scenario: Scenario<MyAssets> = {
     {
       id: "task_1",
       name: "Do something",
+      setup: async (bridge, assets) => {
+        // Seed data used only by this task.
+        assets.entryId = "123";
+      },
       prompt: (assets) => `Do something with entry ${assets.entryId}`,
       evaluate: (toolCalls, response) => ({
         success: true,
         issues: [],
         hallucinated: false,
       }),
+      verify: async (bridge, assets) => ({
+        // Layer 3 real-API verification.
+        success: true,
+        issues: [],
+        hallucinated: false,
+      }),
+      teardown: async (bridge, assets) => {
+        // Always runs after the task attempt.
+      },
     },
   ],
 
   teardown: async (bridge: IBridge, assets: MyAssets): Promise<void> => {
-    // delete created entries
+    // Delete run-level resources and fallback orphans.
   },
 };
 

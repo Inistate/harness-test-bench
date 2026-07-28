@@ -3,6 +3,7 @@ import * as path from "path";
 import inquirer from "inquirer";
 import { MODELS, loadModels } from "./data/models";
 import { runBenchmark } from "./core/benchmark-runner";
+import { DEFAULT_JUDGE_MODEL } from "./core/llm-judge";
 import { runChatAgent } from "./scenarios/scenario_creation/scenario-creator";
 import { loadGeneratedScenarios } from "./scenarios/scenario_creation/scenario-builder";
 import { MCPBridge } from "./bridges/mcp-bridge";
@@ -206,6 +207,27 @@ async function main(): Promise<void> {
     ? ALL_SCENARIOS
     : ALL_SCENARIOS.filter((s) => scenarios.includes(s.id));
 
+  const usesSemanticJudge = selectedScenarios.some((scenario) =>
+    scenario.tasks.some((task) => Boolean(task.semanticCriteria))
+  );
+  let judgeModel = process.env.JUDGE_MODEL?.trim() || DEFAULT_JUDGE_MODEL;
+  if (usesSemanticJudge) {
+    const judgeModelAnswer = await inquirer.prompt<{ judgeModel: string }>([{
+      type: "input",
+      name: "judgeModel",
+      message: "OpenRouter model ID for semantic judging?",
+      default: judgeModel,
+      validate: (value: string) => {
+        const modelId = value.trim();
+        if (!modelId) return "Judge model ID is required";
+        return models.some((model) => model.id === modelId)
+          ? true
+          : `Unknown OpenRouter model ID: ${modelId}`;
+      },
+    }]);
+    judgeModel = judgeModelAnswer.judgeModel.trim();
+  }
+
   // ─── Workspace ID per scenario ─────────────────────────────────────────────
   console.log("\n\x1b[38;5;208m⚠\x1b[0m  Each scenario runs against a specific workspace.");
   console.log("   Make sure the workspace already exists in Inistate before continuing.\n");
@@ -256,7 +278,7 @@ async function main(): Promise<void> {
   const logReasoning = process.env.LOG_REASONING === "1" || process.env.LOG_REASONING === "true";
   const verbose = process.argv.includes("--verbose");
 
-  console.log(`\n📋 ${selectedScenarios.length} scenario(s) | 🤖 ${selectedModels.length} model(s) | 🔄 ${runs} run(s)${logReasoning ? " | 🧠 reasoning on" : ""}${verbose ? " | 📝 verbose" : ""}`);
+  console.log(`\n📋 ${selectedScenarios.length} scenario(s) | 🤖 ${selectedModels.length} model(s) | 🔄 ${runs} run(s)${usesSemanticJudge ? ` | ⚖️ judge ${judgeModel}` : ""}${logReasoning ? " | 🧠 reasoning on" : ""}${verbose ? " | 📝 verbose" : ""}`);
   console.log(`🔧 MCP: ${config.mcpPath}\n`);
 
   await runBenchmark({
@@ -266,6 +288,7 @@ async function main(): Promise<void> {
     mcpPath: config.mcpPath,
     mcpEnv: config.mcpEnv,
     openRouterKey: config.openRouterKey,
+    judgeModel,
     logReasoning,
     verbose,
     scenarioWorkspaces,

@@ -26,6 +26,7 @@ export interface BenchmarkConfig {
   mcpPath: string;
   mcpEnv: McpEnv;
   openRouterKey: string;
+  judgeModel?: string;
   logReasoning?: boolean;
   verbose?: boolean;
   scenarioWorkspaces: Record<string, string>;
@@ -41,6 +42,11 @@ export interface EvaluationResult {
   success: boolean;
   issues: string[];
   hallucinated: boolean;
+}
+
+export interface TaskVerificationContext {
+  toolCalls: ToolCall[];
+  responsePreview?: string;
 }
 
 export interface TaskResult {
@@ -88,9 +94,17 @@ export interface Task<TAssets> {
   name: string;
   prompt: string | ((assets: TAssets) => string);
   evaluate: (toolCalls: ToolCall[], response: string, assets?: TAssets) => EvaluationResult;
-  verify?: (bridge: IBridge, assets: TAssets) => Promise<EvaluationResult>;
+  /** Semantic response criteria evaluated by the LLM judge after deterministic checks pass. */
+  semanticCriteria?: string;
+  verify?: (
+    bridge: IBridge,
+    assets: TAssets,
+    context?: TaskVerificationContext,
+  ) => Promise<EvaluationResult>;
   maxSteps?: number;
   setup?: (bridge: IBridge, assets: TAssets) => Promise<void>;
+  /** Always runs after the task attempt, including setup/model/verify failures. */
+  teardown?: (bridge: IBridge, assets: TAssets) => Promise<void>;
 }
 
 /** Minimal bridge interface used by scenario setup/teardown — avoids circular imports. */

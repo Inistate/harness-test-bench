@@ -5,6 +5,7 @@ require("dotenv").config({ path: path.join(__dirname, "../.env") });
 
 import { loadModels } from "./data/models";
 import { runBenchmark } from "./core/benchmark-runner";
+import { DEFAULT_JUDGE_MODEL } from "./core/llm-judge";
 import { writeJUnit } from "./display/junit-writer";
 import type { McpEnv, Scenario } from "./types";
 
@@ -29,6 +30,7 @@ interface CiEnv {
   runs: number;
   junitOutput: string;
   openRouterKey: string;
+  judgeModel: string;
   mcpPath: string;
   mcpEnv: McpEnv;
 }
@@ -73,6 +75,7 @@ function readAndValidateEnv(): CiEnv {
     runs,
     junitOutput:  process.env.BENCH_JUNIT_OUTPUT?.trim() ?? path.join(__dirname, "../results/report.xml"),
     openRouterKey,
+    judgeModel: process.env.JUDGE_MODEL?.trim() || DEFAULT_JUDGE_MODEL,
     mcpPath,
     mcpEnv: {
       INISTATE_API_TOKEN:    inistateToken,
@@ -114,12 +117,20 @@ async function main(): Promise<void> {
 
   const selectedScenarios = ALL_SCENARIOS.filter((s) => env.scenarioIds.includes(s.id));
   const selectedModels    = allModels.filter((m) => env.modelIds.includes(m.id));
+  const usesSemanticJudge = selectedScenarios.some((scenario) =>
+    scenario.tasks.some((task) => Boolean(task.semanticCriteria))
+  );
+  if (usesSemanticJudge && !allModels.some((model) => model.id === env.judgeModel)) {
+    console.error(`\n❌ Unknown judge model ID: ${env.judgeModel}`);
+    process.exit(1);
+  }
   const scenarioWorkspaces = Object.fromEntries(
     selectedScenarios.map((s) => [s.id, env.workspaceId])
   );
 
   console.log(
-    `📋 ${selectedScenarios.length} scenario(s) | 🤖 ${selectedModels.length} model(s) | 🔄 ${env.runs} run(s)`
+    `📋 ${selectedScenarios.length} scenario(s) | 🤖 ${selectedModels.length} model(s) | 🔄 ${env.runs} run(s)` +
+    (usesSemanticJudge ? ` | ⚖️ judge ${env.judgeModel}` : "")
   );
 
   const results = await runBenchmark({
@@ -129,6 +140,7 @@ async function main(): Promise<void> {
     mcpPath: env.mcpPath,
     mcpEnv: env.mcpEnv,
     openRouterKey: env.openRouterKey,
+    judgeModel: env.judgeModel,
     logReasoning: false,
     scenarioWorkspaces,
   });

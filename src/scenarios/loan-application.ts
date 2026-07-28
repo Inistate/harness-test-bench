@@ -121,7 +121,7 @@ const activityMap: Record<ExpectedBranch, string> = {
   "Under Review": "send to review",
 };
 
-// Level 1 + 2: correct tool calls and correct params
+// Layer 1 + 2: correct tool calls and correct params
 function evaluateBranch(
   toolCalls: ToolCall[],
   _assets: LoanAssets | undefined,
@@ -131,15 +131,15 @@ function evaluateBranch(
 ): EvaluationResult {
   const issues: string[] = [];
 
-  // Level 1 — correct tool calls
+  // Layer 1 — correct tool calls
   // Must navigate the foreign ref: get_entry on Applicant
   const readApplicant = toolCalls.some(
     (t) => t.name === "get_entry" &&
-      (JSON.stringify(t.arguments).includes(String(applicantId)) ||
-       JSON.stringify(t.arguments).toLowerCase().includes("applicant"))
+      JSON.stringify(t.arguments).includes(String(applicantId)) &&
+      !hasError(t.result)
   );
   if (!readApplicant) {
-    issues.push("Level 1: did not call get_entry on Applicant to read credit_score / active_loans");
+    issues.push("Layer 1: did not call get_entry on Applicant to read credit_score / active_loans");
   }
 
   // Must call the correct branch activity
@@ -150,7 +150,7 @@ function evaluateBranch(
       !hasError(t.result)
   );
   if (!branchCall) {
-    issues.push(`Level 1: expected activity "${expected}" was not called successfully`);
+    issues.push(`Layer 1: expected activity "${expected}" was not called successfully`);
     const wrongBranch = (Object.keys(activityMap) as ExpectedBranch[])
       .filter((b) => b !== expected)
       .find((b) => toolCalls.some(
@@ -159,40 +159,40 @@ function evaluateBranch(
           !hasError(t.result)
       ));
     if (wrongBranch) {
-      issues.push(`Level 1: wrong branch taken — "${wrongBranch}" instead of "${expected}"`);
+      issues.push(`Layer 2: wrong branch taken — "${wrongBranch}" instead of "${expected}"`);
     }
     return { success: false, issues, hallucinated: wrongBranch !== undefined };
   }
 
-  // Level 2 — correct params on the branch call
+  // Layer 2 — correct params on the branch call
   const argRaw = JSON.stringify(branchCall.arguments).toLowerCase();
 
   // Loan entry must be targeted
-  if (!argRaw.includes(String(loanId)) && !argRaw.includes("loanapplication")) {
-    issues.push(`Level 2: branch activity did not target LoanApplication entry (ID: ${loanId})`);
+  if (!argRaw.includes(String(loanId))) {
+    issues.push(`Layer 2: branch activity did not target LoanApplication entry (ID: ${loanId})`);
   }
 
   // Branch-specific required fields
   if (expected === "Approved") {
     if (!argRaw.includes("offer amount") && !argRaw.includes("offer_amount")) {
-      issues.push("Level 2: Approve call missing Offer Amount field");
+      issues.push("Layer 2: Approve call missing Offer Amount field");
     }
   }
   if (expected === "Rejected") {
     if (!argRaw.includes("rejection reason") && !argRaw.includes("rejection_reason")) {
-      issues.push("Level 2: Reject call missing Rejection Reason field");
+      issues.push("Layer 2: Reject call missing Rejection Reason field");
     }
   }
   if (expected === "Under Review") {
     if (!argRaw.includes("assigned to") && !argRaw.includes("assigned_to")) {
-      issues.push("Level 2: Send to Review call missing Assigned To field");
+      issues.push("Layer 2: Send to Review call missing Assigned To field");
     }
   }
 
   return { success: issues.length === 0, issues, hallucinated: false };
 }
 
-// Level 3 — real API validation via get_entry
+// Layer 3 — real API validation via get_entry
 async function verifyLoanState(
   bridge: IBridge,
   loanId: string | number,
@@ -202,32 +202,32 @@ async function verifyLoanState(
   const issues: string[] = [];
   const result = await bridge.callTool("get_entry", { module: "LoanApplication", entryId: loanId }) as Record<string, unknown>;
   if (hasError(result)) {
-    issues.push(`Level 3: get_entry failed for LoanApplication ${loanId}`);
+    issues.push(`Layer 3: get_entry failed for LoanApplication ${loanId}`);
     return { success: false, issues, hallucinated: false };
   }
   const raw = JSON.stringify(result).toLowerCase();
 
   // State check
   if (!raw.includes(expected.toLowerCase())) {
-    issues.push(`Level 3: state is not "${expected}"`);
+    issues.push(`Layer 3: state is not "${expected}"`);
   }
 
   // Field value checks per branch
   if (expected === "Approved") {
     if (!raw.includes("offer amount") && !raw.includes("offer_amount")) {
-      issues.push("Level 3: Offer Amount not set on approved entry");
+      issues.push("Layer 3: Offer Amount not set on approved entry");
     } else if (requestedAmount !== undefined && !raw.includes(String(requestedAmount))) {
-      issues.push(`Level 3: Offer Amount does not match requested amount (${requestedAmount})`);
+      issues.push(`Layer 3: Offer Amount does not match requested amount (${requestedAmount})`);
     }
   }
   if (expected === "Rejected") {
     if (!raw.includes("rejection reason") && !raw.includes("rejection_reason")) {
-      issues.push("Level 3: Rejection Reason not set on rejected entry");
+      issues.push("Layer 3: Rejection Reason not set on rejected entry");
     }
   }
   if (expected === "Under Review") {
     if (!raw.includes("assigned to") && !raw.includes("assigned_to")) {
-      issues.push("Level 3: Assigned To not set on under-review entry");
+      issues.push("Layer 3: Assigned To not set on under-review entry");
     }
   }
 

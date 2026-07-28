@@ -5,6 +5,7 @@ import * as path from "path";
 import { execSync } from "child_process";
 import { MCPBridge } from "../bridges/mcp-bridge";
 import type { BenchmarkConfig, IBridge, Model, ModelRunResult, RawMcpTool, ResultFile, Scenario, ScenarioResult, TaskResult, ToolCall } from "../types";
+import { DEFAULT_JUDGE_MODEL, judge } from "./llm-judge";
 import { logger } from "./logger";
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -216,11 +217,13 @@ async function collectExecutedToolCalls(result: unknown): Promise<ToolCall[]> {
 async function runTask(
   openrouter: OpenRouter,
   model: Model,
-  task: { id: string; name: string; prompt: string | ((assets: Record<string, unknown>) => string); evaluate: (calls: ToolCall[], response: string, assets?: Record<string, unknown>) => { success: boolean; issues: string[]; hallucinated: boolean }; maxSteps?: number },
+  task: { id: string; name: string; prompt: string | ((assets: Record<string, unknown>) => string); evaluate: (calls: ToolCall[], response: string, assets?: Record<string, unknown>) => { success: boolean; issues: string[]; hallucinated: boolean }; semanticCriteria?: string; maxSteps?: number },
   assets: Record<string, unknown>,
   tools: Tool[],
   system: string,
   logReasoning: boolean,
+  openRouterKey: string,
+  judgeModel: string,
   attempt = 0
 ): Promise<TaskResult> {
   const prompt = typeof task.prompt === "function" ? task.prompt(assets) : task.prompt;
@@ -281,7 +284,36 @@ async function runTask(
     const resPromise = fetchGenerationCost(generationIds);
 
     const toolCalls = await collectExecutedToolCalls(result);
-    const evaluation = task.evaluate(toolCalls, text, assets);
+    const deterministicEvaluation = task.evaluate(toolCalls, text, assets);
+    let evaluation = deterministicEvaluation;
+    if (task.semanticCriteria) {
+      try {
+        const semanticEvaluation = await judge(
+          task.name,
+          prompt,
+          task.semanticCriteria,
+          toolCalls,
+          text,
+          openRouterKey,
+          judgeModel,
+        );
+        evaluation = {
+          success: deterministicEvaluation.success && semanticEvaluation.success,
+          issues: [...deterministicEvaluation.issues, ...semanticEvaluation.issues],
+          hallucinated:
+            deterministicEvaluation.hallucinated || semanticEvaluation.hallucinated,
+        };
+      } catch (error) {
+        evaluation = {
+          success: false,
+          issues: [
+            ...deterministicEvaluation.issues,
+            `Layer 2: LLM judge failed: ${(error as Error).message}`,
+          ],
+          hallucinated: deterministicEvaluation.hallucinated,
+        };
+      }
+    }
 
     if (logReasoning && reasoningChunks.length > 0) {
       const reasoning = reasoningChunks.join("").trim();
@@ -315,7 +347,18 @@ async function runTask(
       const wait = [10000, 30000, 60000][attempt];
       process.stdout.write(`\n    ${warn} Rate limited. Waiting ${wait / 1000}s...`);
       await sleep(wait);
-      return runTask(openrouter, model, task, assets, tools, system, logReasoning, attempt + 1);
+      return runTask(
+        openrouter,
+        model,
+        task,
+        assets,
+        tools,
+        system,
+        logReasoning,
+        openRouterKey,
+        judgeModel,
+        attempt + 1,
+      );
     }
 
     if (status === 402 || status === 403) {
@@ -371,7 +414,9 @@ async function runTaskLocal(
   assets: Record<string, unknown>,
   rawTools: RawMcpTool[],
   bridge: IBridge,
-  system: string
+  system: string,
+  openRouterKey: string,
+  judgeModel: string,
 ): Promise<TaskResult> {
   const prompt = typeof task.prompt === "function" ? task.prompt(assets) : task.prompt;
   const start = Date.now();
@@ -458,7 +503,40 @@ async function runTaskLocal(
   }
 
   const latency = Date.now() - start;
-  const evaluation = task.evaluate(collectedToolCalls, finalText, assets);
+  const deterministicEvaluation = task.evaluate(
+    collectedToolCalls,
+    finalText,
+    assets,
+  );
+  let evaluation = deterministicEvaluation;
+  if (task.semanticCriteria) {
+    try {
+      const semanticEvaluation = await judge(
+        task.name,
+        prompt,
+        task.semanticCriteria,
+        collectedToolCalls,
+        finalText,
+        openRouterKey,
+        judgeModel,
+      );
+      evaluation = {
+        success: deterministicEvaluation.success && semanticEvaluation.success,
+        issues: [...deterministicEvaluation.issues, ...semanticEvaluation.issues],
+        hallucinated:
+          deterministicEvaluation.hallucinated || semanticEvaluation.hallucinated,
+      };
+    } catch (error) {
+      evaluation = {
+        success: false,
+        issues: [
+          ...deterministicEvaluation.issues,
+          `Layer 2: LLM judge failed: ${(error as Error).message}`,
+        ],
+        hallucinated: deterministicEvaluation.hallucinated,
+      };
+    }
+  }
 
   return {
     skipped: false,
@@ -485,7 +563,9 @@ async function runScenarioForModel(
   rawTools: RawMcpTool[],
   localBaseUrl: string | undefined,
   logReasoning: boolean,
-  bridge: IBridge
+  bridge: IBridge,
+  openRouterKey: string,
+  judgeModel: string,
 ): Promise<ModelRunResult> {
   const modelResults: ModelRunResult = {
     model: model.name,
@@ -507,78 +587,119 @@ async function runScenarioForModel(
       `    Task ${i + 1}/${scenario.tasks.length}: ${c.dim}${task.name}${c.reset} `
     );
 
-    if (task.setup) {
-      try {
-        await task.setup(bridge, assets as Parameters<typeof task.setup>[1]);
-      } catch (e) {
-        console.log(`\n    ${warn} Task setup failed: ${(e as Error).message}`);
-      }
-    }
-
-    const system = typeof scenario.system === "function" ? scenario.system(assets) : scenario.system;
-    const result = (model.local && localBaseUrl)
-      ? await runTaskLocal(localBaseUrl, model, task as Parameters<typeof runTask>[2], assets, rawTools, bridge, system)
-      : await runTask(openrouter, model, task as Parameters<typeof runTask>[2], assets, tools, system, logReasoning);
-
-    if (result.skipped) {
-      console.log(`${warn} Skipped: ${result.reason}`);
-      modelResults.tasks[task.id] = { skipped: true, reason: result.reason };
-      if (i === 0) {
-        modelResults.skipped = true;
-        modelResults.skip_reason = result.reason;
-        break;
-      }
-      continue;
-    }
-
-    if (task.verify) {
-      try {
-        const verifyResult = await task.verify(bridge, assets as Parameters<NonNullable<typeof task.verify>>[1]);
-        if (!verifyResult.success) {
-          result.success = false;
-          result.issues = [...(result.issues ?? []), ...verifyResult.issues];
+    try {
+      if (task.setup) {
+        try {
+          await task.setup(bridge, assets as Parameters<typeof task.setup>[1]);
+        } catch (e) {
+          const reason = `Task setup failed: ${(e as Error).message}`;
+          console.log(`\n    ${warn} ${reason}`);
+          modelResults.tasks[task.id] = { skipped: true, reason };
+          if (i === 0) {
+            modelResults.skipped = true;
+            modelResults.skip_reason = reason;
+            break;
+          }
+          continue;
         }
-      } catch (e) {
-        console.log(`\n    ${warn} Task verify error: ${(e as Error).message}`);
+      }
+
+      const system = typeof scenario.system === "function" ? scenario.system(assets) : scenario.system;
+      const result = (model.local && localBaseUrl)
+        ? await runTaskLocal(localBaseUrl, model, task as Parameters<typeof runTask>[2], assets, rawTools, bridge, system, openRouterKey, judgeModel)
+        : await runTask(openrouter, model, task as Parameters<typeof runTask>[2], assets, tools, system, logReasoning, openRouterKey, judgeModel);
+
+      if (result.skipped) {
+        console.log(`${warn} Skipped: ${result.reason}`);
+        modelResults.tasks[task.id] = { skipped: true, reason: result.reason };
+        if (i === 0) {
+          modelResults.skipped = true;
+          modelResults.skip_reason = result.reason;
+          break;
+        }
+        continue;
+      }
+
+      if (task.verify) {
+        try {
+          const verifyResult = await task.verify(
+            bridge,
+            assets as Parameters<NonNullable<typeof task.verify>>[1],
+            {
+              toolCalls: result.tool_call_details ?? [],
+              responsePreview: result.response_preview,
+            },
+          );
+          if (verifyResult.success) {
+            const remainingIssues = (result.issues ?? []).filter(
+              (issue) => !/^Layer [12]:/i.test(issue),
+            );
+            result.issues = remainingIssues;
+            result.success = remainingIssues.length === 0;
+            result.hallucinated = false;
+          } else {
+            result.success = false;
+            result.issues = [...(result.issues ?? []), ...verifyResult.issues];
+          }
+        } catch (e) {
+          const verificationIssue = `Layer 3: verification failed: ${(e as Error).message}`;
+          result.success = false;
+          result.issues = [...(result.issues ?? []), verificationIssue];
+          console.log(`\n    ${warn} ${verificationIssue}`);
+        }
+      }
+
+      let inputTokens = result.input_tokens ?? 0;
+      let outputTokens = result.output_tokens ?? 0;
+      if (result._res_promise) {
+        const resData = await result._res_promise;
+        inputTokens = resData.inputTokens;
+        outputTokens = resData.outputTokens;
+        result.cost_usd = resData.cost;
+        result.input_tokens = inputTokens;
+        result.output_tokens = outputTokens;
+        delete result._res_promise;
+      }
+
+      const icon = result.success ? tick : cross;
+      const costStr = (result.cost_usd ?? 0) > 0 ? `$${result.cost_usd!.toFixed(6)}` : "$0.000000";
+      const issueStr = (result.issues?.length ?? 0) > 0
+        ? `${c.red}${result.issues!.join("; ")}${c.reset}`
+        : "none";
+
+      console.log(
+        `${icon} ${result.latency_ms}ms | in=${result.input_tokens} out=${result.output_tokens} | ${costStr} | ${issueStr}`
+      );
+      for (const line of formatToolTrace(result.tool_call_details ?? [])) {
+        console.log(`      ${line}`);
+      }
+
+      modelResults.tasks[task.id] = result;
+      if (result.success) modelResults.score++;
+
+      modelResults.total_input_tokens  += inputTokens;
+      modelResults.total_output_tokens += outputTokens;
+      modelResults.total_tokens += inputTokens + outputTokens;
+      modelResults.total_cost   += result.cost_usd ?? 0;
+      modelResults.total_tool_calls += result.tool_calls?.length ?? 0;
+
+      if (i < scenario.tasks.length - 1) await sleep(DELAY_BETWEEN_TASKS);
+    } finally {
+      if (task.teardown) {
+        try {
+          await task.teardown(bridge, assets as Parameters<NonNullable<typeof task.teardown>>[1]);
+        } catch (e) {
+          const teardownIssue = `Layer 3: task teardown failed: ${(e as Error).message}`;
+          const recordedTask = modelResults.tasks[task.id];
+          if (recordedTask && !recordedTask.skipped) {
+            if (recordedTask.success) modelResults.score--;
+            recordedTask.success = false;
+            recordedTask.issues = [...(recordedTask.issues ?? []), teardownIssue];
+          }
+          console.log(`\n    ${warn} ${teardownIssue}`);
+        }
       }
     }
-    
-    let inputTokens = result.input_tokens ?? 0;
-    let outputTokens = result.output_tokens ?? 0;
-    if (result._res_promise) {
-      const resData = await result._res_promise;
-      inputTokens = resData.inputTokens;
-      outputTokens = resData.outputTokens;
-      result.cost_usd = resData.cost;
-      result.input_tokens = inputTokens;
-      result.output_tokens = outputTokens;
-      delete result._res_promise;
-    }
-
-    const icon = result.success ? tick : cross;
-    const costStr = (result.cost_usd ?? 0) > 0 ? `$${result.cost_usd!.toFixed(6)}` : "$0.000000";
-    const issueStr = (result.issues?.length ?? 0) > 0
-      ? `${c.red}${result.issues!.join("; ")}${c.reset}`
-      : "none";
-
-    console.log(
-      `${icon} ${result.latency_ms}ms | in=${result.input_tokens} out=${result.output_tokens} | ${costStr} | ${issueStr}`
-    );
-    for (const line of formatToolTrace(result.tool_call_details ?? [])) {
-      console.log(`      ${line}`);
-    }
-
-    modelResults.tasks[task.id] = result;
-    if (result.success) modelResults.score++;
-
-
-    modelResults.total_input_tokens  += inputTokens;
-    modelResults.total_output_tokens += outputTokens;
-    modelResults.total_tokens += inputTokens + outputTokens;
-    modelResults.total_cost   += result.cost_usd ?? 0;
-    modelResults.total_tool_calls += result.tool_calls?.length ?? 0;
-
-    if (i < scenario.tasks.length - 1) await sleep(DELAY_BETWEEN_TASKS);
   }
 
   const nonSkipped = Object.values(modelResults.tasks).filter((t) => !t.skipped);
@@ -600,7 +721,18 @@ async function runScenarioForModel(
 // ─── Main runner ───────────────────────────────────────────────────────────────
 /** Run all scenarios against the given models, printing live progress and saving results. */
 export async function runBenchmark(config: BenchmarkConfig): Promise<Record<string, ScenarioResult>> {
-  const { scenarios, models, runs, mcpPath, mcpEnv, openRouterKey, logReasoning = false, verbose = false, scenarioWorkspaces } = config;
+  const {
+    scenarios,
+    models,
+    runs,
+    mcpPath,
+    mcpEnv,
+    openRouterKey,
+    judgeModel = DEFAULT_JUDGE_MODEL,
+    logReasoning = false,
+    verbose = false,
+    scenarioWorkspaces,
+  } = config;
   const localBaseUrl = process.env.LOCAL_BASE_URL;
   const openrouter = new OpenRouter({
     apiKey: openRouterKey || process.env.OPENROUTER_API_KEY || "local",
@@ -628,17 +760,6 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<Record<stri
 
     const workspaceId = scenarioWorkspaces[scenario.id] ?? "";
 
-    process.stdout.write("Setting up scenario... ");
-    let assets: Record<string, unknown>;
-    try {
-      assets = await scenario.setup(mcpBridge, workspaceId) as Record<string, unknown>;
-      console.log(`${tick} entryId: ${(assets as Record<string, unknown>).entryId ?? "n/a"}`);
-    } catch (e) {
-      console.log(`${cross} Setup failed: ${(e as Error).message}`);
-      await mcpBridge.disconnect();
-      continue;
-    }
-
     for (let m = 0; m < models.length; m++) {
       const model = models[m];
       console.log(`\n  ${c.bold}[${model.name}]${c.reset}`);
@@ -647,22 +768,65 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<Record<stri
 
       for (let run = 0; run < runs; run++) {
         if (runs > 1) console.log(`  Run ${run + 1}/${runs}:`);
-        const result = await runScenarioForModel(openrouter, model, scenario, assets, tools, mcpBridge.rawTools, localBaseUrl, logReasoning, mcpBridge);
-        modelRunResults.push(result);
-        if (result.skipped) break;
+        let assets: Record<string, unknown> | undefined;
+        let stopRuns = false;
+
+        process.stdout.write("    Global setup... ");
+        try {
+          assets = await scenario.setup(mcpBridge, workspaceId) as Record<string, unknown>;
+          console.log(tick);
+
+          const result = await runScenarioForModel(
+            openrouter,
+            model,
+            scenario,
+            assets,
+            tools,
+            mcpBridge.rawTools,
+            localBaseUrl,
+            logReasoning,
+            mcpBridge,
+            openRouterKey,
+            judgeModel,
+          );
+          modelRunResults.push(result);
+          stopRuns = result.skipped;
+        } catch (e) {
+          const reason = `Global setup failed: ${(e as Error).message}`;
+          console.log(`${cross} ${reason}`);
+          modelRunResults.push({
+            model: model.name,
+            tasks: {},
+            score: 0,
+            total: scenario.tasks.length,
+            total_tokens: 0,
+            total_input_tokens: 0,
+            total_output_tokens: 0,
+            total_cost: 0,
+            total_tool_calls: 0,
+            avg_latency_ms: 0,
+            skipped: true,
+            skip_reason: reason,
+          });
+          stopRuns = true;
+        } finally {
+          if (assets) {
+            process.stdout.write("    Global teardown... ");
+            try {
+              await scenario.teardown(mcpBridge, assets);
+              console.log(tick);
+            } catch (e) {
+              console.log(`${warn} ${(e as Error).message}`);
+            }
+          }
+        }
+
+        if (stopRuns) break;
       }
 
       allResults[scenario.id].models[model.id] = modelRunResults;
 
       if (m < models.length - 1) await sleep(DELAY_BETWEEN_MODELS);
-    }
-
-    process.stdout.write("\nTearing down... ");
-    try {
-      await scenario.teardown(mcpBridge, assets);
-      console.log(tick);
-    } catch (e) {
-      console.log(`${warn} ${(e as Error).message}`);
     }
 
     await mcpBridge.disconnect();

@@ -2,7 +2,6 @@ import * as fs from "fs";
 import * as path from "path";
 import type { GeneratedScenario, IBridge, RawMcpTool, ResolvedConfig, Scenario } from "../../types";
 import { runChecks } from "../../core/check-evaluator";
-import { judge } from "../../core/llm-judge";
 
 const GENERATED_DIR = path.join(__dirname, "generated");
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -194,6 +193,7 @@ function jsonToScenario(
       name: task.name,
       maxSteps: task.maxSteps,
       prompt: (assets: Record<string, unknown>) => substitute(task.prompt, assets),
+      semanticCriteria: task.ai,
 
       setup: task.setupPrompt
         ? async (bridge: IBridge, assets: Record<string, unknown>) => {
@@ -203,22 +203,7 @@ function jsonToScenario(
         : undefined,
 
       evaluate: (toolCalls, response) => {
-        const checkResult = runChecks(task.checks, toolCalls);
-
-        if (!task.ai) return checkResult;
-
-        // ai criteria are evaluated async but evaluate() is sync — defer via returned promise trick
-        // Instead: if checks already failed, skip the LLM call (save cost)
-        // Return check result now; judge is invoked only if checks pass
-        // Full async judge integration is in runTask (future enhancement)
-        // For now, annotate the issue so it's visible in results
-        if (!checkResult.success) return checkResult;
-
-        // Append a marker so the runner knows to call the judge
-        return {
-          ...checkResult,
-          issues: [...checkResult.issues, `__ai_pending__:${task.ai}`],
-        };
+        return runChecks(task.checks, toolCalls);
       },
     })),
 

@@ -15,12 +15,12 @@ export function runChecks(checks: string[], toolCalls: ToolCall[]): EvaluationRe
     if (check.startsWith("called:")) {
       const tool = check.slice("called:".length);
       if (!toolCalls.some((t) => t.name === tool))
-        issues.push(`Did not call ${tool}`);
+        issues.push(`Layer 1: did not call ${tool}`);
 
     } else if (check.startsWith("not_called:")) {
       const tool = check.slice("not_called:".length);
       if (toolCalls.some((t) => t.name === tool)) {
-        issues.push(`Called ${tool} (should not have)`);
+        issues.push(`Layer 1: called ${tool} (should not have)`);
         hallucinated = true;
       }
 
@@ -30,7 +30,7 @@ export function runChecks(checks: string[], toolCalls: ToolCall[]): EvaluationRe
       const eqIdx = rest.indexOf("=");
       const dotIdx = rest.indexOf(".");
       if (eqIdx === -1 || dotIdx === -1 || dotIdx > eqIdx) {
-        issues.push(`Malformed check: ${check}`);
+        issues.push(`Layer 2: malformed parameter check: ${check}`);
         continue;
       }
       const tool     = rest.slice(0, dotIdx);
@@ -40,20 +40,20 @@ export function runChecks(checks: string[], toolCalls: ToolCall[]): EvaluationRe
         (t) => t.name === tool && String(t.arguments[argName]) === expected
       );
       if (!matched)
-        issues.push(`${tool}.${argName} ≠ "${expected}"`);
+        issues.push(`Layer 2: ${tool}.${argName} ≠ "${expected}"`);
 
     } else if (check.startsWith("success:")) {
       const tool  = check.slice("success:".length);
       const calls = toolCalls.filter((t) => t.name === tool);
       if (calls.length === 0) {
-        issues.push(`Did not call ${tool}`);
+        issues.push(`Layer 1: did not call ${tool}`);
       } else {
         const anyOk = calls.some((t) => !(t.result as Record<string, unknown>)?.error);
-        if (!anyOk) issues.push(`${tool} returned an error on all calls`);
+        if (!anyOk) issues.push(`Layer 1: ${tool} returned an error on all calls`);
       }
 
     } else {
-      issues.push(`Unknown check syntax: ${check}`);
+      issues.push(`Layer 2: unknown check syntax: ${check}`);
     }
   }
 

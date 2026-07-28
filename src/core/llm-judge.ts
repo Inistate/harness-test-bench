@@ -1,7 +1,7 @@
 import type { EvaluationResult, ToolCall } from "../types";
 
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
-const JUDGE_MODEL = "google/gemini-flash-1.5";
+export const DEFAULT_JUDGE_MODEL = "deepseek/deepseek-v4-flash";
 
 /** Evaluate a model's task execution against given criteria using an LLM judge. */
 export async function judge(
@@ -10,7 +10,8 @@ export async function judge(
   criteria: string,
   toolCalls: ToolCall[],
   response: string,
-  openRouterKey: string
+  openRouterKey: string,
+  judgeModel: string,
 ): Promise<EvaluationResult> {
   const system = `You are an impartial benchmark evaluator. Assess whether an AI model met the given criteria.
 Respond with JSON only — no prose, no markdown fences.
@@ -39,7 +40,7 @@ ${response}`;
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: JUDGE_MODEL,
+      model: judgeModel,
       messages: [
         { role: "system", content: system },
         { role: "user", content: userMsg },
@@ -56,8 +57,20 @@ ${response}`;
 
   const data = await res.json() as { choices: Array<{ message: { content: string } }> };
   try {
-    return JSON.parse(data.choices[0]?.message?.content ?? "{}") as EvaluationResult;
+    const result = JSON.parse(
+      data.choices[0]?.message?.content ?? "{}",
+    ) as EvaluationResult;
+    return {
+      ...result,
+      issues: (result.issues ?? []).map((issue) =>
+        /^Layer [123]:/i.test(issue) ? issue : `Layer 2: ${issue}`
+      ),
+    };
   } catch {
-    return { success: false, issues: ["Judge failed to parse LLM response"], hallucinated: false };
+    return {
+      success: false,
+      issues: ["Layer 2: judge failed to parse LLM response"],
+      hallucinated: false,
+    };
   }
 }

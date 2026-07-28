@@ -63,14 +63,14 @@ const scenario: Scenario<ProjectManagementAssets> = {
         // workspaceId kept here intentionally — task 1 is specifically about workspace discovery
       evaluate: (toolCalls, _response, assets) => {
         const issues: string[] = [];
-        if (!calledSuccessfully(toolCalls, "list_workspaces")) issues.push("Did not call list_workspaces");
+        if (!calledSuccessfully(toolCalls, "list_workspaces")) issues.push("Layer 1: did not call list_workspaces");
         const listCall = toolCalls.find((t) => t.name === "list_workspaces");
         const autoSelected = (listCall?.result as Record<string, unknown>)?.autoSelected;
         const setWs = toolCalls.find((t) => t.name === "set_workspace" && !hasError(t.result));
         if (!setWs && !autoSelected) {
-          issues.push("Did not call set_workspace");
+          issues.push("Layer 1: did not call set_workspace");
         } else if (setWs && assets && String(setWs.arguments?.workspaceId ?? "") !== String(assets.workspaceId)) {
-          issues.push(`set_workspace called with wrong workspaceId (got "${setWs.arguments?.workspaceId}", expected "${assets.workspaceId}")`);
+          issues.push(`Layer 2: set_workspace called with wrong workspaceId (got "${setWs.arguments?.workspaceId}", expected "${assets.workspaceId}")`);
         }
         return { success: issues.length === 0, issues, hallucinated: false };
       },
@@ -87,10 +87,10 @@ const scenario: Scenario<ProjectManagementAssets> = {
         `Workspace is already active, don't need to explicitly set it again.`,
       evaluate: (toolCalls) => {
         const issues: string[] = [];
-        if (!calledSuccessfully(toolCalls, "design_workflow")) issues.push("Did not call design_workflow");
+        if (!calledSuccessfully(toolCalls, "design_workflow")) issues.push("Layer 1: did not call design_workflow");
         const validateCall = toolCalls.find((t) => t.name === "validate_design" && !hasError(t.result));
         if (!validateCall) {
-          issues.push("Did not call validate_design");
+          issues.push("Layer 1: did not call validate_design");
         } else {
           const schema = validateCall.arguments?.schema as Record<string, unknown> | undefined;
           const info = Array.isArray(schema?.information) ? (schema!.information as Array<Record<string, unknown>>) : [];
@@ -99,7 +99,7 @@ const scenario: Scenario<ProjectManagementAssets> = {
           const missing = required.filter((r) => !fieldNames.some((n) => n.includes(r) || r.includes(n)));
           const states = schema?.states as unknown[] | undefined;
           if (!Array.isArray(states) || states.length === 0) missing.push("status");
-          if (missing.length > 0) issues.push(`Validated design is missing fields: ${missing.join(", ")}`);
+          if (missing.length > 0) issues.push(`Layer 2: validated design is missing fields: ${missing.join(", ")}`);
         }
         return { success: issues.length === 0, issues, hallucinated: false };
       },
@@ -121,21 +121,21 @@ const scenario: Scenario<ProjectManagementAssets> = {
         // so a separate get_module_schema/get_module_canvas call is not required.
         const createCall = toolCalls.find((t) => t.name === "create_module" && !hasError(t.result));
         if (!createCall) {
-          issues.push("Did not successfully call create_module");
+          issues.push("Layer 1: did not successfully call create_module");
         } else {
           const states = createCall.arguments?.states as unknown[] | undefined;
           if (!Array.isArray(states) || states.length === 0) {
-            issues.push("create_module call did not include any states");
+            issues.push("Layer 2: create_module call did not include any states");
           }
         }
         const updateCall = toolCalls.find((t) => t.name === "update_module" && !hasError(t.result));
         if (!updateCall) {
-          issues.push("Did not successfully call update_module");
+          issues.push("Layer 1: did not successfully call update_module");
         } else {
           const info = updateCall.arguments?.information as Array<Record<string, unknown>> | undefined;
           const names = Array.isArray(info) ? info.map((f) => String(f?.name ?? "").toLowerCase()) : [];
-          if (!names.some((n) => n.includes("priority"))) issues.push("update_module call did not add a Priority field");
-          if (!names.some((n) => n.includes("notes")))    issues.push("update_module call did not add a Notes field");
+          if (!names.some((n) => n.includes("priority"))) issues.push("Layer 2: update_module call did not add a Priority field");
+          if (!names.some((n) => n.includes("notes")))    issues.push("Layer 2: update_module call did not add a Notes field");
         }
         return { success: issues.length === 0, issues, hallucinated: false };
       },
@@ -143,15 +143,15 @@ const scenario: Scenario<ProjectManagementAssets> = {
         const issues: string[] = [];
         const schema = await bridge.callTool("get_module_schema", { module: "Client Projects", tier: "basic" }) as Record<string, unknown>;
         if (hasError(schema)) {
-          issues.push("get_module_schema failed when verifying the final module state");
+          issues.push("Layer 3: get_module_schema failed when verifying the final module state");
           return { success: false, issues, hallucinated: false };
         }
         const info = Array.isArray(schema?.information) ? (schema.information as Array<Record<string, unknown>>) : [];
         const names = info.map((f) => String(f?.name ?? "").toLowerCase());
         const states = Array.isArray(schema?.states) ? (schema.states as unknown[]) : [];
-        if (states.length === 0) issues.push("Module has no states defined");
-        if (!names.some((n) => n.includes("priority"))) issues.push("Module schema is missing the Priority field");
-        if (!names.some((n) => n.includes("notes")))    issues.push("Module schema is missing the Notes field");
+        if (states.length === 0) issues.push("Layer 3: module has no states defined");
+        if (!names.some((n) => n.includes("priority"))) issues.push("Layer 3: module schema is missing the Priority field");
+        if (!names.some((n) => n.includes("notes")))    issues.push("Layer 3: module schema is missing the Notes field");
         return { success: issues.length === 0, issues, hallucinated: false };
       },
     },
@@ -175,29 +175,28 @@ const scenario: Scenario<ProjectManagementAssets> = {
         const issues: string[] = [];
 
         if (!singleCall || hasError(singleCall.result)) {
-          issues.push("Did not successfully call submit_activity (single entry)");
+          issues.push("Layer 1: did not successfully call submit_activity (single entry)");
         } else {
           const input = singleCall.arguments?.input as Record<string, unknown> | undefined;
           if (!input || !String(input["Project Name"] ?? "").toLowerCase().includes("crm integration")) {
-            issues.push("submit_activity input did not match the requested CRM Integration entry");
+            issues.push("Layer 2: submit_activity input did not match the requested CRM Integration entry");
           }
         }
 
         if (!batchCall || hasError(batchCall.result)) {
-          issues.push("Did not successfully call submit_activities (batch of two)");
+          issues.push("Layer 1: did not successfully call submit_activities (batch of two)");
         } else {
           const items = batchCall.arguments?.items as Array<Record<string, unknown>> | undefined;
           if (!Array.isArray(items) || items.length !== 2) {
-            issues.push(`submit_activities batch did not contain exactly 2 items (got ${items?.length ?? 0})`);
+            issues.push(`Layer 2: submit_activities batch did not contain exactly 2 items (got ${items?.length ?? 0})`);
           } else {
             const names = items.map((it) => String((it?.input as Record<string, unknown>)?.["Project Name"] ?? "").toLowerCase());
-            if (!names.some((n) => n.includes("brand refresh")))  issues.push("submit_activities batch missing Brand Refresh entry");
-            if (!names.some((n) => n.includes("data migration"))) issues.push("submit_activities batch missing Data Migration entry");
+            if (!names.some((n) => n.includes("brand refresh")))  issues.push("Layer 2: submit_activities batch missing Brand Refresh entry");
+            if (!names.some((n) => n.includes("data migration"))) issues.push("Layer 2: submit_activities batch missing Data Migration entry");
           }
         }
 
-        const success = !!singleCall && !hasError(singleCall.result) && !!batchCall && !hasError(batchCall.result);
-        return { success, issues, hallucinated: false };
+        return { success: issues.length === 0, issues, hallucinated: false };
       },
     },
     {
@@ -211,19 +210,17 @@ const scenario: Scenario<ProjectManagementAssets> = {
         `Then transition it to the next appropriate state based on its current state.`,
       evaluate: (toolCalls) => {
         const issues: string[] = [];
-        // list_modules is the expected discovery path but the model may discover modules
-        // via set_workspace (which returns the same data). Track it but don't gate success.
-        if (!calledSuccessfully(toolCalls, "list_modules")) issues.push("Did not call list_modules (used alternate discovery)");
+        // list_modules is optional because set_workspace returns equivalent discovery data.
         const listCall = toolCalls.find((t) => t.name === "list_entries" && !hasError(t.result));
-        if (!listCall) issues.push("Did not call list_entries");
+        if (!listCall) issues.push("Layer 1: did not call list_entries");
         // get_entry is NOT required — list_entries returns full field data inline.
         // get_entry_history has no alternative path so it remains required.
         const historyCall = toolCalls.find((t) => t.name === "get_entry_history" && !hasError(t.result));
-        if (!historyCall) issues.push("Did not call get_entry_history");
+        if (!historyCall) issues.push("Layer 1: did not call get_entry_history");
         // Server-side gating (confirmation, actor checks) still counts as a valid
         // attempt here — don't require the transition to have succeeded.
         const transitionCall = toolCalls.find((t) => t.name === "submit_activity");
-        if (!transitionCall) issues.push("Did not attempt to transition entry to next state");
+        if (!transitionCall) issues.push("Layer 1: did not attempt to transition entry to next state");
 
         // Param check: the entry inspected via get_entry_history and the entry
         // transitioned should be the same entry — not two different ones.
@@ -234,12 +231,11 @@ const scenario: Scenario<ProjectManagementAssets> = {
             (transitionCall.arguments?.entryIds as unknown[])?.[0] ?? ""
           );
           if (historyEntryId && transitionEntryId && historyEntryId !== transitionEntryId) {
-            issues.push(`Inspected entry (${historyEntryId}) does not match the entry transitioned (${transitionEntryId})`);
+            issues.push(`Layer 2: inspected entry (${historyEntryId}) does not match the entry transitioned (${transitionEntryId})`);
           }
         }
 
-        const requiredMissing = !listCall || !historyCall || !transitionCall;
-        return { success: !requiredMissing, issues, hallucinated: false };
+        return { success: issues.length === 0, issues, hallucinated: false };
       },
       verify: async (bridge: IBridge, assets: ProjectManagementAssets): Promise<{ success: boolean; issues: string[]; hallucinated: boolean }> => {
         await bridge.callTool("switch_mode", { mode: "configure" });

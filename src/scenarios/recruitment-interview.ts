@@ -260,13 +260,13 @@ Be concise. Use the minimum tools needed to complete each task.`,
         `at ${assets.interviewSlot}. ` +
         `Check the existing interview schedule to make sure you pick an interviewer who doesn't already have an interview at that time. ` +
         `Create the Interview entry with the correct interviewer linked.`,
-      evaluate: (toolCalls, _response, assets): EvaluationResult => {
+      evaluate: (toolCalls, response, assets): EvaluationResult => {
         const issues: string[] = [];
 
         // Agent must check existing interviews to detect clashes
         const checkedSchedule = calledSuccessfully(toolCalls, "list_entries") &&
           toolCalls.some((t) => t.name === "list_entries" && JSON.stringify(t.arguments).toLowerCase().includes("interview"));
-        if (!checkedSchedule) issues.push("Did not call list_entries on Interview module to check for clashes");
+        if (!checkedSchedule) issues.push("Layer 1: did not call list_entries on Interview module to check for clashes");
 
         // Agent must create an Interview entry
         const createCall = toolCalls.find(
@@ -275,7 +275,7 @@ Be concise. Use the minimum tools needed to complete each task.`,
             !hasError(t.result)
         );
         if (!createCall) {
-          issues.push("Did not successfully create an Interview entry");
+          issues.push("Layer 1: did not successfully create an Interview entry");
           return { success: false, issues, hallucinated: false };
         }
 
@@ -287,14 +287,14 @@ Be concise. Use the minimum tools needed to complete each task.`,
         const pickedBob   = raw.includes("bob")   || (assets && raw.includes(String(assets.bobId).toLowerCase()));
 
         if (!pickedCarol) {
-          if (pickedAlice) issues.push("Chose Alice Tan who has a clashing interview at the same time slot");
-          else if (pickedBob) issues.push("Chose Bob Lim who has a clashing interview at the same time slot");
-          else issues.push("Could not determine which interviewer was chosen — Carol Wong expected");
+          if (pickedAlice) issues.push("Layer 2: chose Alice Tan who has a clashing interview at the same time slot");
+          else if (pickedBob) issues.push("Layer 2: chose Bob Lim who has a clashing interview at the same time slot");
+          else issues.push("Layer 2: could not determine which interviewer was chosen — Carol Wong expected");
         }
 
         // Candidate must be linked
         const linkedCandidate = raw.includes("jamie") || (assets && raw.includes(String(assets.candidateId).toLowerCase()));
-        if (!linkedCandidate) issues.push("Candidate Jamie Chen not linked in the Interview entry");
+        if (!linkedCandidate) issues.push("Layer 2: candidate Jamie Chen not linked in the Interview entry");
 
         return {
           success: issues.length === 0,
@@ -316,14 +316,14 @@ Be concise. Use the minimum tools needed to complete each task.`,
         });
 
         if (!agentEntry) {
-          issues.push("No Interview entry found linking Jamie Chen with Carol Wong");
+          issues.push("Layer 3: no Interview entry found linking Jamie Chen with Carol Wong");
         } else {
           const raw = JSON.stringify(agentEntry).toLowerCase();
           if (raw.includes("alice") || raw.includes(String(assets.aliceId))) {
-            issues.push("Interview entry incorrectly links Alice Tan (who had a clash)");
+            issues.push("Layer 3: interview entry incorrectly links Alice Tan (who had a clash)");
           }
           if (raw.includes("bob") || raw.includes(String(assets.bobId))) {
-            issues.push("Interview entry incorrectly links Bob Lim (who had a clash)");
+            issues.push("Layer 3: interview entry incorrectly links Bob Lim (who had a clash)");
           }
         }
 
@@ -369,13 +369,13 @@ Be concise. Use the minimum tools needed to complete each task.`,
             !hasError(t.result)
         );
         if (!transitionCall) {
-          issues.push("Did not transition candidate using 'Schedule Interview' activity");
+          issues.push("Layer 1: did not transition candidate using 'Schedule Interview' activity");
         } else if (assets) {
           const raw = JSON.stringify(transitionCall.arguments);
           const targetedCandidate =
             raw.includes(String(assets.candidateId)) ||
             JSON.stringify(transitionCall.arguments).toLowerCase().includes("jamie");
-          if (!targetedCandidate) issues.push("Transition did not target candidate Jamie Chen");
+          if (!targetedCandidate) issues.push("Layer 2: transition did not target candidate Jamie Chen");
         }
 
         // Must update Notes with notification content
@@ -385,11 +385,11 @@ Be concise. Use the minimum tools needed to complete each task.`,
             !hasError(t.result)
         );
         if (!notifyCall) {
-          issues.push("Did not update candidate Notes field with a notification message");
+          issues.push("Layer 1: did not update candidate Notes field with a notification message");
         } else {
           const raw = JSON.stringify(notifyCall.arguments).toLowerCase();
           if (!raw.includes("carol") && !raw.includes("confirmed") && !raw.includes("interview")) {
-            issues.push("Notification message does not mention confirmation, Carol, or interview details");
+            issues.push("Layer 2: notification message does not mention confirmation, Carol, or interview details");
           }
         }
 
@@ -399,15 +399,15 @@ Be concise. Use the minimum tools needed to complete each task.`,
         const issues: string[] = [];
         const result = await bridge.callTool("get_entry", { module: "Candidate", entryId: assets.candidateId }) as Record<string, unknown>;
         if (hasError(result)) {
-          issues.push("get_entry failed for candidate Jamie Chen");
+          issues.push("Layer 3: get_entry failed for candidate Jamie Chen");
           return { success: false, issues, hallucinated: false };
         }
         const raw = JSON.stringify(result).toLowerCase();
         if (!raw.includes("interview scheduled")) {
-          issues.push(`Candidate state is not "Interview Scheduled" — got: ${JSON.stringify((result?.data as Record<string, unknown>)?.state ?? result?.state ?? "unknown")}`);
+          issues.push(`Layer 3: candidate state is not "Interview Scheduled" — got: ${JSON.stringify((result?.data as Record<string, unknown>)?.state ?? result?.state ?? "unknown")}`);
         }
         if (!raw.includes("carol") && !raw.includes("confirmed")) {
-          issues.push("Candidate Notes field does not contain confirmation message referencing Carol or confirmation");
+          issues.push("Layer 3: candidate Notes field does not contain confirmation message referencing Carol or confirmation");
         }
         return { success: issues.length === 0, issues, hallucinated: false };
       },
@@ -435,7 +435,7 @@ Be concise. Use the minimum tools needed to complete each task.`,
         `Look up the full details of the interviewer Carol Wong from the Interviewer module, ` +
         `and the full profile of candidate Jamie Chen from the Candidate module. ` +
         `Summarise both — department and email for the interviewer, role and current status for the candidate.`,
-      evaluate: (toolCalls, _response, assets): EvaluationResult => {
+      evaluate: (toolCalls, response, assets): EvaluationResult => {
         const issues: string[] = [];
 
         // Must fetch interviewer record
@@ -445,12 +445,13 @@ Be concise. Use the minimum tools needed to complete each task.`,
              JSON.stringify(t.arguments).toLowerCase().includes("interviewer"))
         );
         if (!interviewerCall) {
-          issues.push("Did not call get_entry for Carol Wong (Interviewer module)");
+          issues.push("Layer 1: did not call get_entry for Carol Wong (Interviewer module)");
         } else {
           // Check the actual returned data contains Carol's known details
           const resultRaw = JSON.stringify(interviewerCall.result).toLowerCase();
-          if (!resultRaw.includes("product")) issues.push("Interviewer record does not contain Department 'Product'");
-          if (!resultRaw.includes("carol")) issues.push("Interviewer record does not reference Carol Wong");
+          if (!resultRaw.includes("product")) issues.push("Layer 2: interviewer record does not contain Department 'Product'");
+          if (!resultRaw.includes("carol")) issues.push("Layer 2: interviewer record does not reference Carol Wong");
+          if (!resultRaw.includes("carol@company.com")) issues.push("Layer 2: interviewer record does not contain Carol Wong's email");
         }
 
         // Must fetch candidate record
@@ -460,14 +461,30 @@ Be concise. Use the minimum tools needed to complete each task.`,
              JSON.stringify(t.arguments).toLowerCase().includes("candidate"))
         );
         if (!candidateCall) {
-          issues.push("Did not call get_entry for Jamie Chen (Candidate module)");
+          issues.push("Layer 1: did not call get_entry for Jamie Chen (Candidate module)");
         } else {
           const resultRaw = JSON.stringify(candidateCall.result).toLowerCase();
-          if (!resultRaw.includes("software engineer")) issues.push("Candidate record does not contain Role 'Software Engineer'");
-          if (!resultRaw.includes("jamie")) issues.push("Candidate record does not reference Jamie Chen");
+          if (!resultRaw.includes("software engineer")) issues.push("Layer 2: candidate record does not contain Role 'Software Engineer'");
+          if (!resultRaw.includes("jamie")) issues.push("Layer 2: candidate record does not reference Jamie Chen");
+          if (!resultRaw.includes("interview scheduled")) issues.push("Layer 2: candidate record does not show status 'Interview Scheduled'");
         }
 
-        return { success: issues.length === 0, issues, hallucinated: false };
+        const responseText = response.toLowerCase();
+        const responseContainsBriefing =
+          responseText.includes("carol") &&
+          responseText.includes("product") &&
+          responseText.includes("carol@company.com") &&
+          responseText.includes("software engineer") &&
+          responseText.includes("interview scheduled");
+        if (!responseContainsBriefing) {
+          issues.push("Layer 2: response does not contain Carol's department/email and Jamie's role/status");
+        }
+
+        return {
+          success: issues.length === 0,
+          issues,
+          hallucinated: responseContainsBriefing && (!interviewerCall || !candidateCall),
+        };
       },
     },
 
@@ -503,10 +520,10 @@ Be concise. Use the minimum tools needed to complete each task.`,
             !hasError(t.result)
         );
         if (!completeCall) {
-          issues.push("Did not transition Interview entry using 'Complete Interview' activity");
+          issues.push("Layer 1: did not transition Interview entry using 'Complete Interview' activity");
         } else {
           const raw = JSON.stringify(completeCall.arguments).toLowerCase();
-          if (!raw.includes("pass")) issues.push("'Complete Interview' call did not set Result to 'Pass'");
+          if (!raw.includes("pass")) issues.push("Layer 2: Complete Interview call did not set Result to 'Pass'");
         }
 
         // Must extend offer to candidate
@@ -516,13 +533,13 @@ Be concise. Use the minimum tools needed to complete each task.`,
             !hasError(t.result)
         );
         if (!offerCall) {
-          issues.push("Did not transition candidate using 'Extend Offer' activity");
+          issues.push("Layer 1: did not transition candidate using 'Extend Offer' activity");
         } else if (assets) {
           const raw = JSON.stringify(offerCall.arguments);
           const targetedCandidate =
             raw.includes(String(assets.candidateId)) ||
             raw.toLowerCase().includes("jamie");
-          if (!targetedCandidate) issues.push("'Extend Offer' did not target candidate Jamie Chen");
+          if (!targetedCandidate) issues.push("Layer 2: Extend Offer did not target candidate Jamie Chen");
         }
 
         // Must notify candidate via Notes
@@ -532,11 +549,11 @@ Be concise. Use the minimum tools needed to complete each task.`,
             !hasError(t.result)
         );
         if (!notifyCall) {
-          issues.push("Did not update candidate Notes with outcome notification");
+          issues.push("Layer 1: did not update candidate Notes with outcome notification");
         } else {
           const raw = JSON.stringify(notifyCall.arguments).toLowerCase();
           if (!raw.includes("offer") && !raw.includes("pass") && !raw.includes("congratulations")) {
-            issues.push("Outcome notification does not mention the offer or passing result");
+            issues.push("Layer 2: outcome notification does not mention the offer or passing result");
           }
         }
 
@@ -548,14 +565,14 @@ Be concise. Use the minimum tools needed to complete each task.`,
         // Check candidate reached Offer Extended
         const candidateResult = await bridge.callTool("get_entry", { module: "Candidate", entryId: assets.candidateId }) as Record<string, unknown>;
         if (hasError(candidateResult)) {
-          issues.push("get_entry failed for candidate Jamie Chen");
+          issues.push("Layer 3: get_entry failed for candidate Jamie Chen");
         } else {
           const raw = JSON.stringify(candidateResult).toLowerCase();
           if (!raw.includes("offer extended")) {
-            issues.push(`Candidate state is not "Offer Extended" — got: ${JSON.stringify((candidateResult?.data as Record<string, unknown>)?.state ?? candidateResult?.state ?? "unknown")}`);
+            issues.push(`Layer 3: candidate state is not "Offer Extended" — got: ${JSON.stringify((candidateResult?.data as Record<string, unknown>)?.state ?? candidateResult?.state ?? "unknown")}`);
           }
           if (!raw.includes("offer") && !raw.includes("congratulations") && !raw.includes("pass")) {
-            issues.push("Candidate Notes does not contain an outcome notification");
+            issues.push("Layer 3: candidate Notes does not contain an outcome notification");
           }
         }
 
@@ -568,12 +585,12 @@ Be concise. Use the minimum tools needed to complete each task.`,
           return (raw.includes("jamie") || raw.includes(String(assets.candidateId))) && !raw.includes("existing candidate");
         });
         if (!jamieInterview) {
-          issues.push("No Interview entry found for Jamie Chen");
+          issues.push("Layer 3: no Interview entry found for Jamie Chen");
         } else {
           const entryId = jamieInterview?.entryId ?? jamieInterview?.id;
           const fullEntry = await bridge.callTool("get_entry", { module: "Interview", entryId }) as Record<string, unknown>;
           const entryRaw = JSON.stringify(fullEntry).toLowerCase();
-          if (!entryRaw.includes("completed")) issues.push("Interview entry state is not 'Completed'");
+          if (!entryRaw.includes("completed")) issues.push("Layer 3: interview entry state is not 'Completed'");
         }
 
         // ── Teardown ────────────────────────────────────────────────────────────
